@@ -3,10 +3,8 @@
   import type { PdfDocument } from './models';
   import { chunkPages } from './chunking';
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
-    import.meta.url
-  ).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 @Injectable({ providedIn: 'root' })
   export class PdfService {
