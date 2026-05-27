@@ -1,0 +1,18 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "preserve",
+    "skipLibCheck": true,
+    "paths": {
+      "@doclocal/ui-kit": ["./libs/ui-kit/src/index.ts"],
+      "@doclocal/data-pdf": ["./libs/data-pdf/src/index.ts"],
+      "@doclocal/data-rag": ["./libs/data-rag/src/index.ts"],
+      "@doclocal/data-webllm": ["./libs/data-webllm/src/index.ts"],
+      "@doclocal/feature-chat": ["./libs/feature-chat/src/index.ts"],
+      "@doclocal/feature-pdf-viewer": ["./libs/feature-pdf-viewer/src/index.ts"]
+    }
+  }
+}
