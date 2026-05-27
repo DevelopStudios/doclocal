@@ -4,7 +4,7 @@
   "sourceRoot": "libs/feature-chat/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:feature"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",

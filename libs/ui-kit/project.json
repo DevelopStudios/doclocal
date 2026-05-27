@@ -4,7 +4,7 @@
   "sourceRoot": "libs/ui-kit/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:ui-kit"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",

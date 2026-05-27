@@ -1,5 +1,4 @@
 import { Component, inject, output, signal } from '@angular/core';
-  import { FormsModule } from '@angular/forms';
   import { RagService } from '@doclocal/data-rag';
   import type { RagResult } from '@doclocal/data-rag';
   import { LlmService } from '@doclocal/data-webllm';
@@ -116,7 +115,7 @@ import { Component, inject, output, signal } from '@angular/core';
         this.citationsChanged.emit(citations.map(c => c.chunkId));
   
         let fullContent = '';
-        let startTime = Date.now();
+        const startTime = Date.now();
 
         this.llm.generate$(buildPrompt(results, question)).subscribe({
           next: ({ token }) => {

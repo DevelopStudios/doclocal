@@ -28,7 +28,11 @@ import { Component, computed, input, output } from '@angular/core';
             class="heat-strip"
             [style.opacity]="0.1 + page.score * 0.9"
             [title]="'Page ' + page.pageNumber"
+            tabindex="0"
+            role="button"
             (click)="pageClicked.emit(page.pageNumber)"
+            (keydown.enter)="pageClicked.emit(page.pageNumber)"
+            (keydown.space)="pageClicked.emit(page.pageNumber)"
           ></div>
         }
       </div>
