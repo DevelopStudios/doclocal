@@ -34,8 +34,7 @@ export type ChipState = 'idle' | 'loading' | 'ready' | 'error';
     `],
     template: `
       <div class="chip-wrapper">
-        <button class="chip" [class]="'chip--' + state()" (click)="popoverOpen.update(v 
-  => !v)">
+        <button class="chip" [class]="'chip--' + state()" (click)="popoverOpen.set(!popoverOpen())">
           <ui-icon name="cpu" [size]="11" />
           @switch (state()) {
             @case ('idle')    { <span>local · WebGPU</span> }
