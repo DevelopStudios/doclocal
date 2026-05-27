@@ -1,1 +1,1 @@
-// exports added as lib is built out
+export { UploadDropzoneComponent } from './lib/upload-dropzone/upload-dropzone.component';
