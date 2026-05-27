@@ -16,12 +16,14 @@
   },
   "files": [],
   "references": [
-    {
-      "path": "./tsconfig.app.json"
-    },
-    {
-      "path": "./tsconfig.spec.json"
-    }
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.spec.json" },
+    { "path": "./libs/ui-kit/tsconfig.json" },
+    { "path": "./libs/data-pdf/tsconfig.json" },
+    { "path": "./libs/data-rag/tsconfig.json" },
+    { "path": "./libs/data-webllm/tsconfig.json" },
+    { "path": "./libs/feature-chat/tsconfig.json" },
+    { "path": "./libs/feature-pdf-viewer/tsconfig.json" }
   ],
   "extends": "./tsconfig.base.json"
 }
