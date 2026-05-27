@@ -1,1 +1,1 @@
-export * from './lib/feature-pdf-viewer/feature-pdf-viewer';
+// exports added as lib is built out

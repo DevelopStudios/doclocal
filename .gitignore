@@ -1,49 +1,43 @@
-# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# Dependencies
+node_modules/
 
-# Compiled output
-/dist
-/tmp
-/out-tsc
-/bazel-out
+# Build output
+dist/
+tmp/
+out-tsc/
 
-# Node
-/node_modules
-npm-debug.log
-yarn-error.log
+# Angular cache
+.angular/
 
-# IDEs and editors
+# NX cache
+.nx/cache
+.nx/workspace-data
+
+# Test output
+coverage/
+test-results/
+playwright-report/
+e2e/fixtures/
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
 .idea/
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# Visual Studio Code
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.history/*
 
-# Miscellaneous
-/.angular/cache
-.sass-cache/
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
-__screenshots__/
+# Claude Code local settings
+.claude/
 
-# System files
-.DS_Store
-Thumbs.db
-
-
-
-.nx/cache
-.nx/workspace-data
-.angular
+# Brainstorm/planning artifacts
+.superpowers/

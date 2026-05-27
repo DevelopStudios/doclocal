@@ -1,1 +1,2 @@
-export * from './lib/data-pdf/data-pdf';
+export type { PdfChunk, PdfDocument } from './lib/models';
+export { chunkPages } from './lib/chunking';
