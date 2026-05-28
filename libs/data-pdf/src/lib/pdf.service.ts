@@ -33,6 +33,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
           content.items
             .map((item: any) => ('str' in item ? item.str : ''))
             .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
         );
       }
   
