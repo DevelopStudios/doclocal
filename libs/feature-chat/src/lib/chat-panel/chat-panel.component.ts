@@ -107,7 +107,7 @@ export class ChatPanelComponent {
     this.messages.update(m => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
 
-    this.rag.query$(question, 5).subscribe(results => {
+    this.rag.query$(question, 3).subscribe(results => {
       const citations: Citation[] = results.map(r => ({
         chunkId: r.chunk.id,
         text: r.chunk.text,
