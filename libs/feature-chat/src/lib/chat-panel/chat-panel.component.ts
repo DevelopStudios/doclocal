@@ -12,14 +12,15 @@ function buildPrompt(results: RagResult[], question: string): string {
     return `The document has no relevant content for this question. Say so briefly.\n\nQuestion: ${question}`;
   }
   const context = results.map((r, i) => `[${i + 1}] ${r.chunk.text}`).join('\n\n');
-  return `You are a helpful assistant answering questions about a document.
-Use only the provided excerpts. Cite sources with [1], [2], etc. Be concise.
-If the answer isn't in the excerpts, say "I couldn't find that in the document."
+  return `You are a document assistant. Answer using ONLY the excerpts below.
+Write in prose — do NOT use a numbered list. After each claim add its source in brackets, e.g. "It supports signals [1] and lazy loading [2]."
+If the answer is not in the excerpts, say "I couldn't find that in the document."
 
-Document excerpts:
+Excerpts:
 ${context}
 
-Question: ${question}`;
+Question: ${question}
+Answer:`;
 }
 
 @Component({
