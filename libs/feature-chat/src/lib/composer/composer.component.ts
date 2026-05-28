@@ -20,8 +20,8 @@ import { Component, input, output, signal } from '@angular/core';
         resize: none; color: var(--color-text); font-family: var(--font-sans);
         font-size: 14px; line-height: 1.5; max-height: 120px;
       }
-      button { 
-        background: var(--color-accent); color: #fff; border: none;
+      button {
+        background: var(--color-accent); color: var(--color-accent-fg); border: none;
         border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer;
         transition: opacity 0.15s; flex-shrink: 0;
       }

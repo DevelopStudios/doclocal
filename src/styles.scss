@@ -7,6 +7,7 @@
     --color-text-muted: #6b7280;
     --color-accent: oklch(0.76 0.14 285);
     --color-accent-dim: rgba(139, 92, 246, 0.15);
+    --color-accent-fg: #ffffff;
     --color-pdf-bg: #f4f0e8;
     --color-pdf-text: #1a1a1a;
     --color-highlight: rgba(251, 191, 36, 0.45);
@@ -26,6 +27,7 @@
     --color-text-muted: #6b7280;
     --color-accent: oklch(0.55 0.18 285);
     --color-accent-dim: rgba(109, 40, 217, 0.1);
+    --color-accent-fg: #ffffff;
   }
 
   [data-theme="mono"] {
@@ -36,6 +38,7 @@
     --color-text-muted: #777777;
     --color-accent: #ffffff;
     --color-accent-dim: rgba(255, 255, 255, 0.1);
+    --color-accent-fg: #000000;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }

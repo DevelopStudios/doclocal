@@ -6,12 +6,14 @@ import { Component, output, signal } from '@angular/core';
     standalone: true,
     imports: [IconComponent],   
     styles: [`
+      :host { display: flex; flex: 1; min-height: 0; }
       .dropzone {
         display: flex; flex-direction: column; align-items: center;
         justify-content: center; gap: 10px; padding: 64px 48px;
         border-radius: var(--radius-lg); border: 1.5px dashed var(--color-border);
-        color: var(--color-text-muted); cursor: default; text-align: center;
+        color: var(--color-text-muted); cursor: pointer; text-align: center;
         transition: border-color 0.15s, background 0.15s;
+        width: 100%; height: 100%; box-sizing: border-box;
       }
       .dropzone--dragging {
         border-color: var(--color-accent);
