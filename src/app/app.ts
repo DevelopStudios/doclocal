@@ -27,6 +27,7 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
     doc = signal<PdfDocument | null>(null);
     highlightedChunkIds = signal<string[]>([]);
     ragResults = signal<RagResult[]>([]);
+    activePage = signal<number>(1);
     parsing = signal(false);
     parseError = signal<string | null>(null);
   
@@ -63,12 +64,16 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
     }
 
     onCitationsChanged(chunkIds: string[]) {
-      this.highlightedChunkIds.set(chunkIds);    
-      const results = chunkIds.map(id => {                        
+      this.highlightedChunkIds.set(chunkIds);
+      const results = chunkIds.map(id => {
         const chunk = this.doc()?.chunks.find(c => c.id === id);
         return chunk ? { chunk, score: 1 } : null;
       }).filter(Boolean) as RagResult[];
       this.ragResults.set(results);
+
+      if (results.length > 0) {
+        this.onPageClicked(results[0].chunk.pageNumber);
+      }
     }
 
     onPageClicked(pageNumber: number) {

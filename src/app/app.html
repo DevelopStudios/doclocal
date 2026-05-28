@@ -38,12 +38,19 @@
     <section class="pdf-col">
       @if (doc()) {
         <div class="pdf-with-minimap">
-          <pdf-viewer [doc]="doc()!" [highlightedChunkIds]="highlightedChunkIds()" />
-          <pdf-heat-minimap
-            [pageCount]="doc()!.pageCount"
-            [ragResults]="ragResults()"
-            (pageClicked)="onPageClicked($event)"
+          <pdf-viewer
+            [doc]="doc()!"
+            [highlightedChunkIds]="highlightedChunkIds()"
+            (pageVisible)="activePage.set($event)"
           />
+          @if (ragResults().length) {
+            <pdf-heat-minimap
+              [pageCount]="doc()!.pageCount"
+              [ragResults]="ragResults()"
+              [activePage]="activePage()"
+              (pageClicked)="onPageClicked($event)"
+            />
+          }
         </div>
       } @else {
         <div class="upload-wrapper">
