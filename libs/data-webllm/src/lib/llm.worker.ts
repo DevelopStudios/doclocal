@@ -26,6 +26,7 @@
         return;
       }
       try {
+        await engine.resetChat();
         const stream = await engine.chat.completions.create({
           messages: [{ role: 'user', content: prompt }],
           stream: true,
