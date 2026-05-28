@@ -1,59 +1,57 @@
-# Doclocal
+# DocLocal
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.9.
+A fully local PDF chat assistant. Drop in a PDF, ask questions, get answers with inline citations — no API keys, no server, no data leaving your machine. Inference runs in the browser via WebGPU.
 
-## Development server
+## Features
 
-To start a local development server, run:
+- **Local LLM** — runs entirely in-browser using [WebLLM](https://github.com/mlc-ai/web-llm) and WebGPU
+- **RAG pipeline** — documents are chunked and embedded locally via a Web Worker using [@huggingface/transformers](https://github.com/huggingface/transformers.js)
+- **PDF viewer** — renders document text with highlighted citation passages
+- **Heat minimap** — shows which pages are most relevant to the current question
+- **Citation chips** — hover over `[1]` references to preview the source excerpt
+- **Three themes** — dark, light, mono
 
-```bash
-ng serve
-```
+## Requirements
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- A browser with WebGPU support (Chrome 113+, Edge 113+)
+- Node 18+
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Getting started
 
 ```bash
-ng generate --help
+npm install
+npm start
 ```
 
-## Building
+Open `http://localhost:4200`, wait for the model to finish loading (~30 seconds on first run), then drop in a PDF.
 
-To build the project run:
+## Scripts
 
-```bash
-ng build
+| Command | Description |
+|---|---|
+| `npm start` | Dev server at `localhost:4200` |
+| `npm run build` | Production build to `dist/` |
+| `npm test` | Unit tests via Jest |
+
+## Project structure
+
+```
+libs/
+  data-pdf/        # PDF parsing and chunking (pdfjs-dist)
+  data-rag/        # Embedding and cosine-similarity search (Web Worker)
+  data-webllm/     # LLM inference service (Web Worker)
+  feature-chat/    # Chat panel, message renderer, composer
+  feature-pdf-viewer/  # PDF viewer, upload dropzone, heat minimap
+  ui-kit/          # Shared components: StatusChip, Icon
+src/
+  app/             # App shell, layout, theme switching
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Tech stack
 
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Angular 20 (standalone components, signals)
+- NX monorepo
+- [WebLLM](https://github.com/mlc-ai/web-llm) — WebGPU LLM inference
+- [@huggingface/transformers](https://github.com/huggingface/transformers.js) — local embeddings
+- [pdfjs-dist](https://github.com/mozilla/pdf.js) — PDF parsing
+- Jest — unit tests
