@@ -34,7 +34,7 @@ import { Component, input, output, signal } from '@angular/core';
           rows="1"
           placeholder="Ask about the document…"
           [disabled]="disabled()"
-          [(ngModel)]="text"
+          [ngModel]="text()" (ngModelChange)="text.set($event)"
           (keydown)="onKeydown($event)"
         ></textarea>  
         <button [disabled]="disabled() || !text().trim()" (click)="submit()">

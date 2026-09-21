@@ -64,14 +64,14 @@ Answer:`;
 
     <div class="bottom">
       <chat-composer
-        [disabled]="streaming() || !llm.loaded() || !docLoaded()"
+        [disabled]="streaming() || !llm.loaded() || llm.loading() || !docLoaded()"
         (submitted)="submit($event)"
       />
       <div class="status-row">
         <ui-status-chip
           [state]="llm.error() ? 'error' : llm.loading() ? 'loading' : llm.loaded() ? 'ready' : 'idle'"
           [tokensPerSec]="llm.tokensPerSec()"
-          [loadProgress]="llm.loadProgress()"
+          [loadProgress]="loadProgress"
           [errorMessage]="llm.error()"
         />
       </div>
@@ -79,7 +79,7 @@ Answer:`;
   `,
 })
 export class ChatPanelComponent {
-  llm = inject(LlmService);
+  readonly llm = inject(LlmService);
   private rag = inject(RagService);
 
   docLoaded = input<boolean>(false);
@@ -147,6 +147,10 @@ export class ChatPanelComponent {
           this.streaming.set(false);
         },
       });
+      
     });
+  }
+  get loadProgress() {
+  return this.llm.loadProgress();
   }
 }

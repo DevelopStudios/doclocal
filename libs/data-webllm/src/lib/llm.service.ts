@@ -9,10 +9,9 @@ export const DEFAULT_MODEL = 'Phi-3.5-mini-instruct-q4f16_1-MLC';
 
   @Injectable({ providedIn: 'root' })
   export class LlmService {
-    private worker = new Worker(
-      new URL('./llm.worker', import.meta.url),
-      { type: 'module' } 
-    );
+    // Use the shared worker that owns a single internal worker.
+    private shared = new SharedWorker(new URL('./shared-llm.worker', import.meta.url));
+    private port = this.shared.port;
 
     readonly loading = signal(false);
     readonly loaded = signal(false);
@@ -21,21 +20,23 @@ export const DEFAULT_MODEL = 'Phi-3.5-mini-instruct-q4f16_1-MLC';
     readonly error = signal<string | null>(null);
   
     constructor() {
-      this.worker.addEventListener('message', (e: MessageEvent) => {
+      this.port.addEventListener('message', (e: MessageEvent) => {
         if (e.data.type === 'loadProgress') this.loadProgress.set(e.data.progress);
         if (e.data.type === 'loaded') { this.loading.set(false); this.loaded.set(true); }
         if (e.data.type === 'error' && !e.data.reqId) {
           this.loading.set(false);
           this.error.set(e.data.message);
-        }   
+        }
       });
+      // addEventListener (unlike onmessage) does not start the port implicitly.
+      this.port.start();
     }
 
     load(modelId = DEFAULT_MODEL): void {
       this.loading.set(true);
       this.loaded.set(false);
       this.error.set(null);
-      this.worker.postMessage({ type: 'load', modelId });
+      this.port.postMessage({ type: 'load', modelId });
     }
 
     generate$(prompt: string): Observable<LlmToken> {
@@ -47,17 +48,17 @@ export const DEFAULT_MODEL = 'Phi-3.5-mini-instruct-q4f16_1-MLC';
           if (e.data.type === 'token') observer.next({ token: e.data.token });
           if (e.data.type === 'done') {
             observer.complete();
-            this.worker.removeEventListener('message', handler);
+            this.port.removeEventListener('message', handler);
           }
           if (e.data.type === 'error') {
             observer.error(new Error(e.data.message));
-            this.worker.removeEventListener('message', handler);
+            this.port.removeEventListener('message', handler);
           } 
         };
 
-        this.worker.addEventListener('message', handler);
-        this.worker.postMessage({ type: 'generate', prompt, reqId });
-        return () => this.worker.postMessage({ type: 'abort', reqId });
+        this.port.addEventListener('message', handler);
+        this.port.postMessage({ type: 'generate', prompt, reqId });
+        return () => this.port.postMessage({ type: 'abort', reqId });
       });   
     }
   }

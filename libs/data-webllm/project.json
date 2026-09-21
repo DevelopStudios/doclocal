@@ -10,6 +10,13 @@
       "executor": "@nx/jest:jest",
       "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
       "options": {
+          "assets": [
+            {
+              "input": "node_modules/@mlc-ai/web-llm",
+              "glob": "**/*",
+              "output": "dist/doclocal/"
+            }
+          ],
         "jestConfig": "libs/data-webllm/jest.config.ts",
         "tsConfig": "libs/data-webllm/tsconfig.spec.json"
       }
