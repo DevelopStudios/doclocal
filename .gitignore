@@ -36,8 +36,8 @@ Thumbs.db
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Claude Code local settings
-.claude/
+# Claude Code local settings (skills and agents are tracked)
+.claude/settings.local.json
 
 # Brainstorm/planning artifacts
 .superpowers/
