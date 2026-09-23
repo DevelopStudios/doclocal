@@ -32,6 +32,8 @@ import { isOverviewQuestion } from './question-kind';
     }
     .suggested-item:hover { border-color: var(--color-accent); color: var(--color-text); }
     .bottom { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .index-status { font-size: 12px; font-family: var(--font-mono); color: var(--color-text-muted); }
+    .index-error { font-size: 12px; color: #f87171; }
     .status-row { display: flex; justify-content: flex-end; }
   `],
   template: `
@@ -42,7 +44,7 @@ import { isOverviewQuestion } from './question-kind';
     </div>
 
     <!-- Starters for an empty conversation; once it has begun they only take up space. -->
-    @if (suggested().length && docLoaded() && messages().length === 0) {
+    @if (suggested().length && docLoaded() && rag.ready() && messages().length === 0) {
       <div class="suggested">
         <span class="suggested-label">Try</span>
         @for (q of suggested(); track q) {
@@ -52,8 +54,13 @@ import { isOverviewQuestion } from './question-kind';
     }
 
     <div class="bottom">
+      @if (docLoaded() && rag.error()) {
+        <p class="index-error" role="alert">Couldn't index this document: {{ rag.error() }}</p>
+      } @else if (docLoaded() && !rag.ready()) {
+        <p class="index-status" role="status">Indexing document… {{ rag.progress().done }} / {{ rag.progress().total }}</p>
+      }
       <chat-composer
-        [disabled]="streaming() || !llm.loaded() || llm.loading() || !docLoaded()"
+        [disabled]="streaming() || !llm.loaded() || llm.loading() || !docLoaded() || !rag.ready()"
         (submitted)="submit($event)"
       />
       <div class="status-row">
@@ -69,7 +76,7 @@ import { isOverviewQuestion } from './question-kind';
 })
 export class ChatPanelComponent {
   readonly llm = inject(LlmService);
-  private rag = inject(RagService);
+  readonly rag = inject(RagService);
 
   docLoaded = input<boolean>(false);
   citationsChanged = output<HighlightSpan[]>();
@@ -92,7 +99,7 @@ export class ChatPanelComponent {
   }
 
   submit(question: string) {
-    if (this.streaming() || !this.llm.loaded() || !this.docLoaded()) return;
+    if (this.streaming() || !this.llm.loaded() || !this.docLoaded() || !this.rag.ready()) return;
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: question };
     const assistantId = crypto.randomUUID();

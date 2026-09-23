@@ -53,9 +53,8 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
       try {                                      
         const parsed = await this.pdf.parse(file);
         this.doc.set(parsed);
-        this.rag.buildIndex$(parsed.chunks).subscribe({
-          error: (err) => this.parseError.set(err.message),
-        }); 
+        // Progress and failures are shown next to the composer from rag.progress() / rag.error().
+        this.rag.buildIndex$(parsed.chunks).subscribe({ error: () => undefined });
       } catch (e) {                                               
         this.parseError.set((e as Error).message);
       } finally {

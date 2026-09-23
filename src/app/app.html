@@ -56,7 +56,6 @@
         <div class="upload-wrapper">
           <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
           @if (parsing()) { <p class="status-text">Parsing document…</p> }
-          @if (rag.indexing()) { <p class="status-text">Indexing chunks…</p> }
           @if (parseError()) { <p class="error-text">{{ parseError() }}</p> }
         </div>
       }
