@@ -24,6 +24,11 @@ describe('stripRepeatedText', () => {
     expect(stripRepeatedText(pages)).toEqual(bodies);
   });
 
+  it('keeps the line breaks in the text it leaves', () => {
+    const pages = ['ACME\nIntro line\n• a', 'ACME\nSecond\n• b', 'ACME\nThird\n• c', 'ACME\nFourth\n• d'];
+    expect(stripRepeatedText(pages)).toEqual(['Intro line\n• a', 'Second\n• b', 'Third\n• c', 'Fourth\n• d']);
+  });
+
   it('keeps words that start fewer than 60% of pages', () => {
     const pages = ['The cat sat.', 'The dog ran.', 'A bird flew.', 'Fish swam.', 'Frogs hopped.'];
     expect(stripRepeatedText(pages)).toEqual(pages);

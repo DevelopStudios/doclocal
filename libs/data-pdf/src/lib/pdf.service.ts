@@ -3,6 +3,7 @@
   import type { PdfDocument } from './models';
   import { chunkPages } from './chunking';
   import { stripRepeatedText } from './boilerplate';
+  import { pageText } from './page-text';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -31,13 +32,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        pages.push(
-          content.items
-            .map((item: any) => ('str' in item ? item.str : ''))
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-        );
+        pages.push(pageText(content.items));
       }
   
       return pages;
