@@ -41,7 +41,8 @@ import { isOverviewQuestion } from './question-kind';
       }
     </div>
 
-    @if (suggested().length && docLoaded()) {
+    <!-- Starters for an empty conversation; once it has begun they only take up space. -->
+    @if (suggested().length && docLoaded() && messages().length === 0) {
       <div class="suggested">
         <span class="suggested-label">Try</span>
         @for (q of suggested(); track q) {
