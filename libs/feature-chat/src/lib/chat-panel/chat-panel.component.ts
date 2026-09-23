@@ -1,4 +1,5 @@
 import { Component, inject, input, output, signal } from '@angular/core';
+import { of } from 'rxjs';
 import { RagService } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 import { StatusChipComponent } from '@doclocal/ui-kit';
@@ -8,6 +9,7 @@ import type { Message, Citation } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
 import { citedSpans, repairCitations, spansForCitation } from './citations';
 import { buildPrompt } from './prompt';
+import { isOverviewQuestion } from './question-kind';
 
 @Component({
   selector: 'chat-panel',
@@ -98,7 +100,11 @@ export class ChatPanelComponent {
     this.messages.update(m => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
 
-    this.rag.query$(question, 3).subscribe(results => {
+    // Whole-document questions ("Summarize this document") get excerpts from across the document;
+    // the top few by similarity would only cover the handful of pages nearest the question.
+    const results$ = isOverviewQuestion(question) ? of(this.rag.overview(8)) : this.rag.query$(question, 3);
+
+    results$.subscribe(results => {
       const citations: Citation[] = results.map(r => ({
         chunkId: r.chunk.id,
         text: r.chunk.text,

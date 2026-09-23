@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
   import { Observable } from 'rxjs';
   import type { PdfChunk } from '@doclocal/data-pdf';
   import { cosineSimilarity } from './cosine';
+  import { evenlySpaced } from './spread';
 
   export interface RagResult {  
     chunk: PdfChunk;
@@ -84,6 +85,11 @@ import { Injectable, signal } from '@angular/core';
         this.worker.postMessage({ type: 'embed', texts: [queryText], reqId });
         return () => this.worker.removeEventListener('message', handler);
       });
+    }
+
+    /** `k` indexed chunks spread across the whole document, for questions about all of it. */
+    overview(k = 8): RagResult[] {
+      return evenlySpaced(this.vectorIndex, k).map(({ chunk }) => ({ chunk, score: 1 }));
     }
 
     clear(): void {
