@@ -24,6 +24,11 @@ describe('parseParts', () => {
         ]);
     });
 
+    it('hides a marker that is still being streamed in', () => {
+        expect(parseParts('[', citations)).toEqual([]);
+        expect(parseParts('Alpha [1', citations)).toEqual([{ type: 'text', value: 'Alpha ' }]);
+    });
+
     it('keeps an out-of-range marker as a chip without a citation', () => {
         expect(parseParts('Alpha [9]', citations)[1]).toEqual({ type: 'cite', value: '[9]', citation: undefined });
     });

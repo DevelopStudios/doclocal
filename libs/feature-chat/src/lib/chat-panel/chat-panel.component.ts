@@ -103,7 +103,9 @@ export class ChatPanelComponent {
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: question };
     const assistantId = crypto.randomUUID();
-    const assistantMsg: Message = { id: assistantId, role: 'assistant', content: '', streaming: true };
+    const assistantMsg: Message = {
+      id: assistantId, role: 'assistant', content: '', streaming: true, stage: 'Searching document…',
+    };
 
     this.messages.update(m => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
@@ -121,6 +123,9 @@ export class ChatPanelComponent {
         score: r.score,
       }));
       this.citationsChanged.emit([]);
+      const stage = results.length === 0 ? 'Writing answer…'
+        : `Reading ${results.length} ${results.length === 1 ? 'excerpt' : 'excerpts'}…`;
+      this.messages.update(m => m.map(msg => msg.id === assistantId ? { ...msg, stage } : msg));
 
       let fullContent = '';
       let tokenCount = 0;
