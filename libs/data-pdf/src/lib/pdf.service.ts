@@ -2,6 +2,7 @@
   import * as pdfjsLib from 'pdfjs-dist';
   import type { PdfDocument } from './models';
   import { chunkPages } from './chunking';
+  import { stripRepeatedText } from './boilerplate';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -10,7 +11,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   export class PdfService {
     async parse(file: File): Promise<PdfDocument> {
       const buffer = await file.arrayBuffer();
-      const pages = await this.extractPages(buffer);
+      // Stripped before chunking and display alike, so highlight word offsets stay aligned.
+      const pages = stripRepeatedText(await this.extractPages(buffer));
       const chunks = chunkPages(pages);
 
       return {
