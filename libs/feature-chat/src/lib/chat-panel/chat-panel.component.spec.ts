@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import type { RagResult } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 import { RagService } from '@doclocal/data-rag';
@@ -129,5 +129,27 @@ describe('ChatPanelComponent answer stages', () => {
         results$.next([result('a')]);
         fixture.detectChanges();
         expect(lastMessage(el)).toBe('Reading 1 excerpt…');
+    });
+});
+
+describe('ChatPanelComponent failures', () => {
+    const lastMessage = (el: HTMLElement) => [...el.querySelectorAll('chat-message')].at(-1)?.textContent?.replace('▋', '').trim();
+
+    it('reports a failed retrieval and lets the user ask again', () => {
+        const { fixture, el } = setup({ ready: true }, throwError(() => new Error('Embedding worker crashed')));
+        fixture.componentInstance.submit('What is this?');
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Error: Embedding worker crashed');
+        expect(fixture.componentInstance.streaming()).toBe(false);
+        expect(el.querySelector('.cursor')).toBeNull();
+    });
+
+    it('reports a failed generation and lets the user ask again', () => {
+        const { fixture, el, tokens } = setup({ ready: true });
+        fixture.componentInstance.submit('What is this?');
+        tokens.error(new Error('Engine not loaded'));
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Error: Engine not loaded');
+        expect(fixture.componentInstance.streaming()).toBe(false);
     });
 });

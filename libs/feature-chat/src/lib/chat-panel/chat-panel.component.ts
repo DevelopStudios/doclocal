@@ -110,11 +110,21 @@ export class ChatPanelComponent {
     this.messages.update(m => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
 
+    // Retrieval and generation can each fail; either way, say so and let the user ask again.
+    const fail = (err: Error) => {
+      this.messages.update(m =>
+        m.map(msg => msg.id === assistantId
+          ? { ...msg, content: `Error: ${err.message}`, streaming: false }
+          : msg)
+      );
+      this.streaming.set(false);
+    };
+
     // Whole-document questions ("Summarize this document") get excerpts from across the document;
     // the top few by similarity would only cover the handful of pages nearest the question.
     const results$ = isOverviewQuestion(question) ? of(this.rag.overview(8)) : this.rag.query$(question, 3);
 
-    results$.subscribe(results => {
+    results$.subscribe({ error: fail, next: results => {
       const citations: Citation[] = results.map(r => ({
         chunkId: r.chunk.id,
         text: r.chunk.text,
@@ -145,14 +155,7 @@ export class ChatPanelComponent {
               : msg)
           );
         },
-        error: (err) => {
-          this.messages.update(m =>
-            m.map(msg => msg.id === assistantId
-              ? { ...msg, content: `Error: ${err.message}`, streaming: false }
-              : msg)
-          );
-          this.streaming.set(false);
-        },
+        error: fail,
         complete: () => {
           const content = repairCitations(fullContent, citations);
           this.citationsChanged.emit(citedSpans(content, citations));
@@ -162,8 +165,7 @@ export class ChatPanelComponent {
           this.streaming.set(false);
         },
       });
-      
-    });
+    } });
   }
   get loadProgress() {
   return this.llm.loadProgress();
