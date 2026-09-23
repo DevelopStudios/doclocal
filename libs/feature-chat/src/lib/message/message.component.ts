@@ -1,4 +1,4 @@
- import { Component, computed, input, signal } from '@angular/core';
+ import { Component, computed, input, output, signal } from '@angular/core';
   import type { Message, Citation } from '../model';
   
   interface TextPart { type: 'text'; value: string; }
@@ -21,7 +21,7 @@
         position: relative; display: inline-block;
         background: var(--color-accent-dim); color: var(--color-accent);
         border-radius: 4px; padding: 0 4px; font-size: 11px;
-        font-family: var(--font-mono); cursor: default; vertical-align: super;
+        font-family: var(--font-mono); cursor: pointer; vertical-align: super;
       }
       .cite-preview { 
         position: absolute; bottom: calc(100% + 6px); left: 0;
@@ -46,7 +46,10 @@
             @if (part.type === 'text') {
               <span>{{ part.value }}</span>
             } @else {
-              <span class="cite-chip"
+              <span class="cite-chip" role="button" tabindex="0"
+                    (click)="select(part.citation)"
+                    (keydown.enter)="select(part.citation)"
+                    (keydown.space)="$event.preventDefault(); select(part.citation)"
                     (mouseenter)="hovered.set(part.citation ?? null)"
                     (mouseleave)="hovered.set(null)">
                 {{ part.value }}
@@ -68,7 +71,12 @@
   }) 
   export class MessageComponent {
     message = input.required<Message>();
+    citationClicked = output<Citation>();
     hovered = signal<Citation | null>(null);
+
+    select(citation: Citation | undefined) {
+      if (citation) this.citationClicked.emit(citation);
+    }
 
     parts = computed<Part[]>(() => {
       const { content, citations = [] } = this.message();

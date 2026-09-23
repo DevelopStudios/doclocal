@@ -6,7 +6,7 @@ import { MessageComponent } from '../message/message.component';
 import { ComposerComponent } from '../composer/composer.component';
 import type { Message, Citation } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
-import { citedSpans, repairCitations } from './citations';
+import { citedSpans, repairCitations, spansForCitation } from './citations';
 import { buildPrompt } from './prompt';
 
 @Component({
@@ -35,7 +35,7 @@ import { buildPrompt } from './prompt';
   template: `
     <div class="messages" aria-live="polite" aria-label="Chat messages">
       @for (msg of messages(); track msg.id) {
-        <chat-message [message]="msg" />
+        <chat-message [message]="msg" (citationClicked)="onCitationClicked(msg, $event)" />
       }
     </div>
 
@@ -78,6 +78,10 @@ export class ChatPanelComponent {
     'Are there any action items?',
   ]);
   streaming = signal(false);
+
+  onCitationClicked(msg: Message, citation: Citation) {
+    this.citationsChanged.emit(spansForCitation(msg.content, msg.citations ?? [], citation));
+  }
 
   onSuggestedClick(q: string, e: MouseEvent) {
     (e.currentTarget as HTMLElement).blur();

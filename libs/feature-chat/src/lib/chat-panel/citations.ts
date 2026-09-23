@@ -117,3 +117,18 @@ export function citedSpans(content: string, citations: Citation[]): HighlightSpa
     }
     return spans;
 }
+
+/**
+ * What to highlight when a citation chip is clicked: the excerpt's sentences that support the
+ * answer, or the whole excerpt when none match, so a click always lands on something visible.
+ */
+export function spansForCitation(content: string, citations: Citation[], citation: Citation): HighlightSpan[] {
+    const spans = citedSpans(content, citations).filter(s => s.chunkId === citation.chunkId);
+    if (spans.length > 0) return spans;
+    return [{
+        chunkId: citation.chunkId,
+        pageNumber: citation.pageNumber,
+        startWord: citation.startWord,
+        endWord: citation.startWord + citation.text.split(' ').length,
+    }];
+}
