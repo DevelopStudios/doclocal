@@ -1,9 +1,6 @@
  import { Component, computed, input, output, signal } from '@angular/core';
   import type { Message, Citation } from '../model';
-  
-  interface TextPart { type: 'text'; value: string; }
-  interface CitePart { type: 'cite'; value: string; citation: Citation | undefined; }
-  type Part = TextPart | CitePart;
+  import { parseParts, type Part } from './parts';
 
   @Component({ 
     selector: 'chat-message',
@@ -80,27 +77,6 @@
 
     parts = computed<Part[]>(() => {
       const { content, citations = [] } = this.message();
-      const result: Part[] = [];
-      const regex = /\[(\d+)\]/g;
-      let last = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = regex.exec(content)) !== null) {
-        if (match.index > last) {
-          result.push({ type: 'text', value: content.slice(last, match.index) });
-        }   
-        result.push({
-          type: 'cite',
-          value: match[0],
-          citation: citations[parseInt(match[1], 10) - 1],
-        }); 
-        last = match.index + match[0].length;
-      }
-
-      if (last < content.length) {
-        result.push({ type: 'text', value: content.slice(last) });
-      }
-  
-      return result;
+      return parseParts(content, citations);
     });
   }

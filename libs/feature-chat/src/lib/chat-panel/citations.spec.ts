@@ -80,6 +80,21 @@ describe('repairCitations', () => {
         expect(repairCitations(answer, excerpts)).toBe(answer);
     });
 
+    it('moves markers that open the answer to the end of the first sentence', () => {
+        expect(repairCitations('[1] A good resume answers 3 questions. Read the job posting for keywords [3].', excerpts))
+            .toBe('A good resume answers 3 questions. [1] Read the job posting for keywords [3].');
+    });
+
+    it('does not treat a list number like "1." as the end of a sentence', () => {
+        expect(repairCitations('[1] A good resume answers 3 questions: 1. What do you seek to do? 2. Why?', excerpts))
+            .toBe('A good resume answers 3 questions: 1. What do you seek to do? [1] 2. Why?');
+    });
+
+    it('collapses a marker repeated back to back', () => {
+        expect(repairCitations('[1] What do you seek to do? [1] Why are you qualified? [1]', excerpts))
+            .toBe('What do you seek to do? [1] Why are you qualified? [1]');
+    });
+
     it('repairs an out-of-range marker when an excerpt clearly supports the sentence', () => {
         expect(repairCitations('Read the job posting carefully for keywords [7].', excerpts))
             .toBe('Read the job posting carefully for keywords [3].');
