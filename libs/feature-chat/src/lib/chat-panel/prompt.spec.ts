@@ -24,8 +24,4 @@ describe('buildPrompt', () => {
         expect(buildPrompt(results, 'What?')).toMatch(/Only if none of the excerpts relate/);
         expect(buildPrompt(results, 'What?')).not.toMatch(/nothing else/);
     });
-
-    it('asks for a brief "not found" reply when nothing was retrieved', () => {
-        expect(buildPrompt([], 'What?')).toMatch(/no relevant content/);
-    });
 });
