@@ -1,4 +1,4 @@
-import { citedSpans } from './citations';
+import { citedSpans, repairCitations } from './citations';
 import type { Citation } from '../model';
 
 const cite = (chunkId: string, text: string, startWord = 0, pageNumber = 1): Citation =>
@@ -61,5 +61,32 @@ describe('citedSpans', () => {
     it('returns nothing when the answer cites nothing or cites out of range', () => {
         expect(citedSpans('No citations here.', [resume])).toEqual([]);
         expect(citedSpans('Chainsaws [0] and mowers [7].', [resume])).toEqual([]);
+    });
+});
+
+describe('repairCitations', () => {
+    const questions = cite('c1', 'A good resume answers 3 questions. What do you seek to do? Why are you qualified?', 0, 5);
+    const formats = cite('c2', 'Chronological Resume Tips and Examples. Common resume formats: chronological, functional, hybrid.', 0, 40);
+    const keywordsTip = cite('c3', 'Where to find keywords and relevant skills: read the job posting carefully.', 0, 22);
+    const excerpts = [questions, formats, keywordsTip];
+
+    it('renumbers a marker to the excerpt that actually supports its sentence', () => {
+        expect(repairCitations('A good resume answers 3 questions: what you seek to do and why you are qualified [2].', excerpts))
+            .toBe('A good resume answers 3 questions: what you seek to do and why you are qualified [1].');
+    });
+
+    it('keeps a marker whose excerpt supports the sentence at least as well as any other', () => {
+        const answer = 'Common formats are chronological, functional and hybrid [2]. Read the job posting for keywords [3].';
+        expect(repairCitations(answer, excerpts)).toBe(answer);
+    });
+
+    it('repairs an out-of-range marker when an excerpt clearly supports the sentence', () => {
+        expect(repairCitations('Read the job posting carefully for keywords [7].', excerpts))
+            .toBe('Read the job posting carefully for keywords [3].');
+    });
+
+    it('leaves the answer alone when no excerpt clearly supports the sentence', () => {
+        expect(repairCitations('Salaries vary by region [2].', excerpts)).toBe('Salaries vary by region [2].');
+        expect(repairCitations("I couldn't find that in the document.", excerpts)).toBe("I couldn't find that in the document.");
     });
 });

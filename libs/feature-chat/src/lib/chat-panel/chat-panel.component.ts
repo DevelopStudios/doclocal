@@ -1,33 +1,13 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { RagService } from '@doclocal/data-rag';
-import type { RagResult } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 import { StatusChipComponent } from '@doclocal/ui-kit';
 import { MessageComponent } from '../message/message.component';
 import { ComposerComponent } from '../composer/composer.component';
 import type { Message, Citation } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
-import { citedSpans } from './citations';
-
-function buildPrompt(results: RagResult[], question: string): string {
-  if (results.length === 0) {
-    return `The document has no relevant content for this question. Say so briefly.\n\nQuestion: ${question}`;
-  }
-  const context = results.map((r, i) => `[${i + 1}] ${r.chunk.text}`).join('\n\n');
-  return `You are a document assistant. Answer the question using ONLY the numbered excerpts below.
-
-Excerpts:
-${context}
-
-Question: ${question}
-
-Rules:
-- Write in plain prose, not a list.
-- End every sentence that uses an excerpt with that excerpt's number in square brackets, like [2]. Never collect sources at the end.
-- If the excerpts do not answer the question, reply with exactly "I couldn't find that in the document." and nothing else.
-
-Answer:`;
-}
+import { citedSpans, repairCitations } from './citations';
+import { buildPrompt } from './prompt';
 
 @Component({
   selector: 'chat-panel',
@@ -151,9 +131,10 @@ export class ChatPanelComponent {
           this.streaming.set(false);
         },
         complete: () => {
-          this.citationsChanged.emit(citedSpans(fullContent, citations));
+          const content = repairCitations(fullContent, citations);
+          this.citationsChanged.emit(citedSpans(content, citations));
           this.messages.update(m =>
-            m.map(msg => msg.id === assistantId ? { ...msg, streaming: false } : msg)
+            m.map(msg => msg.id === assistantId ? { ...msg, content, streaming: false } : msg)
           );
           this.streaming.set(false);
         },
