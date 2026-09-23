@@ -1,11 +1,6 @@
 import { Component, computed, input, output, inject, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
-import type { PdfDocument, PdfChunk } from '@doclocal/data-pdf';
-
-interface RenderedParagraph {
-    chunkId: string | null;
-    text: string;
-    highlighted: boolean;
-}
+import type { PdfDocument, HighlightSpan } from '@doclocal/data-pdf';
+import { buildParagraphs, type RenderedParagraph } from './highlight';
 
 interface RenderedPage {
     pageNumber: number;
@@ -57,17 +52,16 @@ export class PdfViewerComponent implements AfterViewInit, OnDestroy {
     private observer: IntersectionObserver | null = null;
 
     doc = input.required<PdfDocument>();
-    highlightedChunkIds = input<string[]>([]);
+    highlights = input<HighlightSpan[]>([]);
     pageVisible = output<number>();
 
     renderedPages = computed<RenderedPage[]>(() => {
         const doc = this.doc();
-        const highlighted = new Set(this.highlightedChunkIds());
 
         return doc.pages.map((pageText, i) => {
             const pageNumber = i + 1;
-            const pageChunks = doc.chunks.filter(c => c.pageNumber === pageNumber);
-            const paragraphs = this.buildParagraphs(pageText, pageChunks, highlighted);
+            const pageSpans = this.highlights().filter(s => s.pageNumber === pageNumber);
+            const paragraphs = buildParagraphs(pageText, pageSpans);
             return { pageNumber, paragraphs };
         });
     });
@@ -94,39 +88,5 @@ export class PdfViewerComponent implements AfterViewInit, OnDestroy {
 
     ngOnDestroy() {
         this.observer?.disconnect();
-    }
-
-    private buildParagraphs(
-        pageText: string,
-        chunks: PdfChunk[],
-        highlighted: Set<string>
-    ): RenderedParagraph[] {
-        const paragraphs: RenderedParagraph[] = [];
-        let remaining = pageText;
-
-        for (const chunk of chunks) {
-            const probe = chunk.text.slice(0, 40);
-            const idx = remaining.indexOf(probe);
-
-            if (idx > 0) {
-                paragraphs.push({ chunkId: null, text: remaining.slice(0, idx), highlighted: false });
-                remaining = remaining.slice(idx);
-            }
-
-            if (remaining.startsWith(probe)) {
-                paragraphs.push({
-                    chunkId: chunk.id,
-                    text: chunk.text,
-                    highlighted: highlighted.has(chunk.id),
-                });
-                remaining = remaining.slice(chunk.text.length).trimStart();
-            }
-        }
-
-        if (remaining.trim()) {
-            paragraphs.push({ chunkId: null, text: remaining, highlighted: false });
-        }
-
-        return paragraphs;
     }
 }

@@ -40,7 +40,7 @@
         <div class="pdf-with-minimap">
           <pdf-viewer
             [doc]="doc()!"
-            [highlightedChunkIds]="highlightedChunkIds()"
+            [highlights]="highlights()"
             (pageVisible)="activePage.set($event)"
           />
           @if (ragResults().length) {

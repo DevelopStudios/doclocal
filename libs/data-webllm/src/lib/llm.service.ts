@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export const DEFAULT_MODEL = 'Phi-3.5-mini-instruct-q4f16_1-MLC';
+export const DEFAULT_MODEL = 'Qwen2.5-3B-Instruct-q4f16_1-MLC';
   
   export interface LlmToken {
     token: string;

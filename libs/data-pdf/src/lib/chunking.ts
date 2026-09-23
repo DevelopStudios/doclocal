@@ -1,5 +1,5 @@
  import { PdfChunk } from './models';
- export function chunkPages(pages: string[], chunkSize = 512, overlap = 64): PdfChunk[]
+ export function chunkPages(pages: string[], chunkSize = 128, overlap = 32): PdfChunk[]
   {
     const chunks: PdfChunk[] = [];
     let chunkIndex = 0;
@@ -14,7 +14,9 @@
           id: `chunk-${chunkIndex++}`,
           text: words.slice(i, i + chunkSize).join(' '),
           pageNumber: pageIndex + 1,
+          startWord: i,
         });
+        if (i + chunkSize >= words.length) break;
         i += chunkSize - overlap;
       } 
     } 

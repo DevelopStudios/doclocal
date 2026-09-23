@@ -6,20 +6,26 @@ import { StatusChipComponent } from '@doclocal/ui-kit';
 import { MessageComponent } from '../message/message.component';
 import { ComposerComponent } from '../composer/composer.component';
 import type { Message, Citation } from '../model';
+import type { HighlightSpan } from '@doclocal/data-pdf';
+import { citedSpans } from './citations';
 
 function buildPrompt(results: RagResult[], question: string): string {
   if (results.length === 0) {
     return `The document has no relevant content for this question. Say so briefly.\n\nQuestion: ${question}`;
   }
   const context = results.map((r, i) => `[${i + 1}] ${r.chunk.text}`).join('\n\n');
-  return `You are a document assistant. Answer using ONLY the excerpts below.
-Write in prose — do NOT use a numbered list. After each claim add its source in brackets, e.g. "It supports signals [1] and lazy loading [2]."
-If the answer is not in the excerpts, say "I couldn't find that in the document."
+  return `You are a document assistant. Answer the question using ONLY the numbered excerpts below.
 
 Excerpts:
 ${context}
 
 Question: ${question}
+
+Rules:
+- Write in plain prose, not a list.
+- End every sentence that uses an excerpt with that excerpt's number in square brackets, like [2]. Never collect sources at the end.
+- If the excerpts do not answer the question, reply with exactly "I couldn't find that in the document." and nothing else.
+
 Answer:`;
 }
 
@@ -83,7 +89,7 @@ export class ChatPanelComponent {
   private rag = inject(RagService);
 
   docLoaded = input<boolean>(false);
-  citationsChanged = output<string[]>();
+  citationsChanged = output<HighlightSpan[]>();
 
   messages = signal<Message[]>([]);
   suggested = signal<string[]>([
@@ -113,19 +119,23 @@ export class ChatPanelComponent {
         chunkId: r.chunk.id,
         text: r.chunk.text,
         pageNumber: r.chunk.pageNumber,
+        startWord: r.chunk.startWord,
         score: r.score,
       }));
-      this.citationsChanged.emit(citations.map(c => c.chunkId));
+      this.citationsChanged.emit([]);
 
       let fullContent = '';
-      const startTime = Date.now();
+      let tokenCount = 0;
+      let firstTokenAt = 0;
 
       this.llm.generate$(buildPrompt(results, question)).subscribe({
         next: ({ token }) => {
           fullContent += token;
-          const elapsed = (Date.now() - startTime) / 1000;
-          const tps = Math.round(fullContent.split(' ').length / elapsed);
-          this.llm.tokensPerSec.set(tps);
+          // Each streamed chunk is one token; time from the first token so prompt prefill isn't counted.
+          tokenCount++;
+          if (tokenCount === 1) firstTokenAt = Date.now();
+          const elapsed = (Date.now() - firstTokenAt) / 1000;
+          if (elapsed > 0) this.llm.tokensPerSec.set(Math.round((tokenCount - 1) / elapsed));
           this.messages.update(m =>
             m.map(msg => msg.id === assistantId
               ? { ...msg, content: fullContent, citations }
@@ -141,6 +151,7 @@ export class ChatPanelComponent {
           this.streaming.set(false);
         },
         complete: () => {
+          this.citationsChanged.emit(citedSpans(fullContent, citations));
           this.messages.update(m =>
             m.map(msg => msg.id === assistantId ? { ...msg, streaming: false } : msg)
           );

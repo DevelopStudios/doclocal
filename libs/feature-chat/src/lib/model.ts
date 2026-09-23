@@ -2,6 +2,7 @@
     chunkId: string;
     text: string;
     pageNumber: number;
+    startWord: number;
     score: number;
   }
 

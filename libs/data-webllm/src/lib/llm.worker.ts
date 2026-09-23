@@ -30,7 +30,7 @@
         const stream = await engine.chat.completions.create({
           messages: [{ role: 'user', content: prompt }],
           stream: true,
-          max_tokens: 256,
+          max_tokens: 512,
         });
         for await (const chunk of stream) {
           const token = chunk.choices[0]?.delta?.content ?? '';

@@ -1,6 +1,6 @@
 import { Component, effect, inject, OnInit, signal } from '@angular/core';
   import { PdfService } from '@doclocal/data-pdf';
-  import type { PdfDocument } from '@doclocal/data-pdf';
+  import type { PdfDocument, HighlightSpan } from '@doclocal/data-pdf';
   import { RagService } from '@doclocal/data-rag';
   import type { RagResult } from '@doclocal/data-rag';
   import { LlmService } from '@doclocal/data-webllm';
@@ -25,7 +25,7 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
                                                                   
     theme = signal<Theme>('dark');
     doc = signal<PdfDocument | null>(null);
-    highlightedChunkIds = signal<string[]>([]);
+    highlights = signal<HighlightSpan[]>([]);
     ragResults = signal<RagResult[]>([]);
     activePage = signal<number>(1);
     parsing = signal(false);
@@ -47,7 +47,7 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
       this.parsing.set(true);   
       this.parseError.set(null);                 
       this.doc.set(null);
-      this.highlightedChunkIds.set([]);
+      this.highlights.set([]);
       this.ragResults.set([]);
   
       try {                                      
@@ -63,16 +63,17 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
       }
     }
 
-    onCitationsChanged(chunkIds: string[]) {
-      this.highlightedChunkIds.set(chunkIds);
+    onCitationsChanged(spans: HighlightSpan[]) {
+      this.highlights.set(spans);
+      const chunkIds = [...new Set(spans.map(s => s.chunkId))];
       const results = chunkIds.map(id => {
         const chunk = this.doc()?.chunks.find(c => c.id === id);
         return chunk ? { chunk, score: 1 } : null;
       }).filter(Boolean) as RagResult[];
       this.ragResults.set(results);
 
-      if (results.length > 0) {
-        this.onPageClicked(results[0].chunk.pageNumber);
+      if (spans.length > 0) {
+        this.onPageClicked(spans[0].pageNumber);
       }
     }
 

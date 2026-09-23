@@ -38,6 +38,11 @@ const load = (modelId: string, port: MessagePort) => {
   }
   loading = (async () => {
     try {
+      // Free the previous model first — two models at once can exhaust GPU memory.
+      const previous = engine;
+      engine = null;
+      loadedModelId = null;
+      await previous?.unload();
       engine = await CreateMLCEngine(modelId, {
         initProgressCallback: (p) => {
           lastProgress = p.progress;
@@ -64,7 +69,7 @@ const generate = async (prompt: string, reqId: string, port: MessagePort) => {
     const stream = await engine.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
       stream: true,
-      max_tokens: 256,
+      max_tokens: 512,
     });
     for await (const chunk of stream) {
       if (aborted.has(reqId)) break;

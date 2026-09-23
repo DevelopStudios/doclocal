@@ -26,4 +26,18 @@ describe('chunkPages', ()=>{
       expect(chunkPages([])).toEqual([]);
       expect(chunkPages([''])).toEqual([]);
     });
+
+    it('defaults to passage-sized chunks so a highlight does not cover a whole page', () => {
+      const words = Array.from({ length: 400 }, (_, i) => `word${i}`);
+      const result = chunkPages([words.join(' ')]);
+      expect(result.length).toBeGreaterThan(1);
+      expect(result[0].text.split(' ').length).toBe(128);
+    });
+
+    it('records the word offset of each chunk within its page', () => {
+      const words = Array.from({ length: 300 }, (_, i) => `word${i}`);
+      const result = chunkPages([words.join(' '), 'second page'], 128, 32);
+      expect(result.map(c => c.startWord)).toEqual([0, 96, 192, 0]);
+      expect(result[1].text.split(' ')[0]).toBe('word96');
+    });
 })
