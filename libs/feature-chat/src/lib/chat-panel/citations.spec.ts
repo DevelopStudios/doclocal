@@ -1,4 +1,4 @@
-import { citedSpans, repairCitations } from './citations';
+import { citedSpans, repairCitations, spansForCitation } from './citations';
 import type { Citation } from '../model';
 
 const cite = (chunkId: string, text: string, startWord = 0, pageNumber = 1): Citation =>
@@ -88,5 +88,21 @@ describe('repairCitations', () => {
     it('leaves the answer alone when no excerpt clearly supports the sentence', () => {
         expect(repairCitations('Salaries vary by region [2].', excerpts)).toBe('Salaries vary by region [2].');
         expect(repairCitations("I couldn't find that in the document.", excerpts)).toBe("I couldn't find that in the document.");
+    });
+});
+
+describe('spansForCitation', () => {
+    const resume = cite('c1', 'Operated chainsaws and mowers daily. Worked outdoors in all weather.', 10, 2);
+    const school = cite('c2', 'EDUCATION National Senior Certificate 2015.', 0, 7);
+
+    it("returns only the clicked excerpt's supporting sentences", () => {
+        const answer = 'He operated chainsaws and mowers [1] and holds a National Senior Certificate [2].';
+        const spans = spansForCitation(answer, [resume, school], school);
+        expect(spans).toEqual([{ chunkId: 'c2', pageNumber: 7, startWord: 0, endWord: 5 }]);
+    });
+
+    it('falls back to the whole excerpt when no sentence matches the claim', () => {
+        const spans = spansForCitation('Something unrelated [1].', [resume, school], resume);
+        expect(spans).toEqual([{ chunkId: 'c1', pageNumber: 2, startWord: 10, endWord: 20 }]);
     });
 });
