@@ -43,11 +43,22 @@ function claimBefore(text: string): Set<string> {
 }
 
 /**
- * Renumbers `[n]` markers a small model gets wrong: a marker moves to another excerpt when that
- * excerpt shares clearly more keywords with its claim (at least two, and more than the cited
- * excerpt). The model reliably marks *where* a citation goes, not *which* excerpt it came from.
+ * Fixes the `[n]` markers a small model gets wrong. Markers that open the answer move to the end of
+ * its first sentence, back-to-back repeats collapse into one, and a marker is renumbered when
+ * another excerpt shares clearly more keywords with its claim (at least two, and more than the
+ * cited excerpt). The model reliably marks *where* a citation goes, not *which* excerpt.
  */
 export function repairCitations(content: string, citations: Citation[]): string {
+    const leading = content.match(/^\s*((?:\[\d+\]\s*)+)/);
+    if (leading) {
+        const rest = content.slice(leading[0].length);
+        // A list number like "1." isn't a sentence end.
+        const end = rest.search(/(?<!(?:^|\s)\d{1,3})[.!?](?=\s|$)/);
+        const at = end === -1 ? rest.length : end + 1;
+        content = `${rest.slice(0, at)} ${leading[1].trim()}${rest.slice(at)}`;
+    }
+    content = content.replace(/(\[(\d+)\])(\s*\[\2\])+/g, '$1');
+
     const excerptKeywords = citations.map(c => keywords(c.text));
     const support = (claim: Set<string>, index: number) =>
         [...claim].filter(t => excerptKeywords[index]?.has(t)).length;
