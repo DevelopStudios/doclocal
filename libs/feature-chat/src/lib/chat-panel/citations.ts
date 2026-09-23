@@ -43,6 +43,32 @@ function claimBefore(text: string): Set<string> {
 }
 
 /**
+ * Renumbers `[n]` markers a small model gets wrong: a marker moves to another excerpt when that
+ * excerpt shares clearly more keywords with its claim (at least two, and more than the cited
+ * excerpt). The model reliably marks *where* a citation goes, not *which* excerpt it came from.
+ */
+export function repairCitations(content: string, citations: Citation[]): string {
+    const excerptKeywords = citations.map(c => keywords(c.text));
+    const support = (claim: Set<string>, index: number) =>
+        [...claim].filter(t => excerptKeywords[index]?.has(t)).length;
+
+    let prevEnd = 0;
+    return content.replace(/\[(\d+)\]/g, (marker, n: string, offset: number) => {
+        const claim = claimBefore(content.slice(prevEnd, offset));
+        prevEnd = offset + marker.length;
+
+        const cited = parseInt(n, 10) - 1;
+        let best = cited;
+        let bestScore = support(claim, cited);
+        excerptKeywords.forEach((_, i) => {
+            const score = support(claim, i);
+            if (score > bestScore) { best = i; bestScore = score; }
+        });
+        return best !== cited && bestScore >= 2 ? `[${best + 1}]` : marker;
+    });
+}
+
+/**
  * Word ranges in the cited excerpts that support each `[n]` claim in the answer. A sentence of
  * excerpt n supports the claim when they share at least two distinctive keywords — ones that
  * appear in few sentences across all excerpts (at most 2, or a tenth of them), so words like "work" or "days" can't match alone.
