@@ -47,10 +47,10 @@
                     (click)="select(part.citation)"
                     (keydown.enter)="select(part.citation)"
                     (keydown.space)="$event.preventDefault(); select(part.citation)"
-                    (mouseenter)="hovered.set(part.citation ?? null)"
+                    (mouseenter)="hovered.set($index)"
                     (mouseleave)="hovered.set(null)">
                 {{ part.value }}
-                @if (hovered() && hovered()?.chunkId === part.citation?.chunkId) {
+                @if (hovered() === $index && part.citation) {
                   <span class="cite-preview">
                     <span class="cite-page">p.{{ part.citation?.pageNumber }}</span>
                     "{{ part.citation?.text?.slice(0, 120) }}…"
@@ -69,7 +69,8 @@
   export class MessageComponent {
     message = input.required<Message>();
     citationClicked = output<Citation>();
-    hovered = signal<Citation | null>(null);
+    /** Index of the hovered chip; several chips can cite the same excerpt. */
+    hovered = signal<number | null>(null);
 
     select(citation: Citation | undefined) {
       if (citation) this.citationClicked.emit(citation);
