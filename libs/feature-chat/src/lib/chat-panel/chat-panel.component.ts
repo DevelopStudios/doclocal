@@ -17,7 +17,7 @@ import { isOverviewQuestion } from './question-kind';
   imports: [MessageComponent, ComposerComponent, StatusChipComponent],
   styles: [`
     :host { display: flex; flex-direction: column; height: 100%; }
-    .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex;
+    .messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex;
       flex-direction: column; gap: 4px; }
     .suggested { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
       padding: 0 16px 8px; }
