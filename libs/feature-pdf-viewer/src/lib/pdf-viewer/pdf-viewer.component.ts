@@ -20,6 +20,7 @@ interface RenderedPage {
         border-radius: var(--radius-md); padding: 32px;
         font-family: var(--font-serif); font-size: 14px; line-height: 1.8;
         box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+        white-space: pre-line; /* keep the page's line breaks */
       }
       .pdf-page-number {
         font-size: 10px; font-family: var(--font-mono); color: #999;
@@ -37,9 +38,9 @@ interface RenderedPage {
             <div class="pdf-page-number">{{ page.pageNumber }}</div>
             @for (para of page.paragraphs; track $index) {
               @if (para.highlighted) {
-                <mark class="highlight" [attr.data-chunk-id]="para.chunkId">{{ para.text }} </mark>
+                <mark class="highlight" [attr.data-chunk-id]="para.chunkId">{{ para.text }}</mark>{{ para.trailing }}
               } @else {
-                <span>{{ para.text }} </span>
+                <span>{{ para.text }}</span>{{ para.trailing }}
               }
             }
           </div>
