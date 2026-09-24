@@ -11,6 +11,8 @@
     --color-pdf-bg: #f4f0e8;
     --color-pdf-text: #1a1a1a;
     --color-highlight: rgba(251, 191, 36, 0.45);
+    --color-scrollbar: rgba(255, 255, 255, 0.14);
+    color-scheme: dark;
     --font-sans: "Geist", system-ui, sans-serif;
     --font-mono: "Geist Mono", monospace;
     --font-serif: "Source Serif 4", Georgia, serif;
@@ -28,6 +30,8 @@
     --color-accent: oklch(0.55 0.18 285);
     --color-accent-dim: rgba(109, 40, 217, 0.1);
     --color-accent-fg: #ffffff;
+    --color-scrollbar: rgba(0, 0, 0, 0.18);
+    color-scheme: light;
   }
 
   [data-theme="mono"] {
@@ -39,9 +43,15 @@
     --color-accent: #ffffff;
     --color-accent-dim: rgba(255, 255, 255, 0.1);
     --color-accent-fg: #000000;
+    --color-scrollbar: rgba(255, 255, 255, 0.22);
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Thin scrollbars with a theme-coloured thumb on a transparent track, instead of the default
+     light-grey track that stood out against every theme. */
+  * { scrollbar-width: thin; scrollbar-color: var(--color-scrollbar) transparent; }
 
   body {
     background: var(--color-bg);
