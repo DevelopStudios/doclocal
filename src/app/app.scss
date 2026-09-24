@@ -52,7 +52,9 @@
   align-items: stretch; justify-content: stretch;
 }
 
-.pdf-with-minimap {height: 100%; width: 100%; }
+.pdf-with-minimap { display: flex; gap: 6px; height: 100%; width: 100%; }
+// min-width: 0 lets the viewer shrink, so a long unbroken line can't push the minimap out.
+.pdf-with-minimap > pdf-viewer { flex: 1; min-width: 0; }
 
 .upload-wrapper {
   display: flex; flex-direction: column; align-items: stretch;
