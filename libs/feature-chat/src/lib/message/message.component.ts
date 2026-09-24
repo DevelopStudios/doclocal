@@ -16,11 +16,13 @@
       .message--assistant .bubble { background: transparent; max-width: 100%; 
   padding-left: 0; }
       .cite-chip {
-        position: relative; display: inline-block;
+        position: relative; display: inline-block; border: none; margin: 0;
         background: var(--color-accent-dim); color: var(--color-accent);
-        border-radius: 4px; padding: 0 4px; font-size: 11px;
+        border-radius: 4px; padding: 0 4px; font-size: 11px; line-height: inherit;
         font-family: var(--font-mono); cursor: pointer; vertical-align: super;
       }
+      .cite-chip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+      .cite-chip:disabled { cursor: default; opacity: 0.6; }
       /* Fixed so the chat column's scroll container can't clip it; placed by placePreview().
          Pointer-transparent, or a preview opened below a chip would cover (and "hover") the chips under it. */
       .cite-preview {
@@ -28,7 +30,7 @@
         background: var(--color-surface); border: 1px solid var(--color-border);
         border-radius: var(--radius-md); padding: 10px 12px;
         font-family: var(--font-serif); font-size: 12px; line-height: 1.6;
-        color: var(--color-text); white-space: normal;
+        color: var(--color-text); white-space: normal; text-align: left; /* buttons centre content */
         box-shadow: 0 8px 24px rgba(0,0,0,0.3);
       }
       .cite-preview--above { transform: translateY(-100%); }
@@ -46,21 +48,27 @@
             @if (part.type === 'text') {
               <span>{{ part.value }}</span>
             } @else {
-              <span class="cite-chip" role="button" tabindex="0"
-                    (click)="select(part.citation)"
-                    (keydown.enter)="select(part.citation)"
-                    (keydown.space)="$event.preventDefault(); select(part.citation)"
-                    (mouseenter)="showPreview($index, $event)"
-                    (mouseleave)="hovered.set(null)">
+              <button type="button" class="cite-chip"
+                      [disabled]="!part.citation"
+                      [attr.aria-label]="part.citation
+                        ? 'Source ' + sourceNumber(part.value) + ', page ' + part.citation.pageNumber
+                        : 'Source ' + sourceNumber(part.value) + ', not found'"
+                      [attr.aria-describedby]="hovered() === $index && part.citation ? previewId($index) : null"
+                      (click)="select(part.citation)"
+                      (mouseenter)="showPreview($index, $event)"
+                      (mouseleave)="hovered.set(null)"
+                      (focus)="showPreview($index, $event)"
+                      (blur)="hovered.set(null)">
                 {{ part.value }}
                 @if (hovered() === $index && part.citation && placement(); as at) {
-                  <span class="cite-preview" [class.cite-preview--above]="at.above"
+                  <span class="cite-preview" role="tooltip" [id]="previewId($index)"
+                        [class.cite-preview--above]="at.above"
                         [style.left.px]="at.left" [style.top.px]="at.top" [style.width.px]="at.width">
-                    <span class="cite-page">p.{{ part.citation?.pageNumber }}</span>
-                    "{{ part.citation?.text?.slice(0, 120) }}…"
+                    <span class="cite-page">p.{{ part.citation.pageNumber }}</span>
+                    "{{ part.citation.text.slice(0, 120) }}…"
                   </span>
                 }
-              </span>
+              </button>
             }
           }
           @if (message().streaming) {
@@ -82,6 +90,14 @@
       const column = chip.closest('.messages') ?? document.body;
       this.placement.set(placePreview(chip.getBoundingClientRect(), column.getBoundingClientRect()));
       this.hovered.set(index);
+    }
+
+    sourceNumber(marker: string) {
+      return marker.slice(1, -1);
+    }
+
+    previewId(index: number) {
+      return `cite-preview-${this.message().id}-${index}`;
     }
 
     select(citation: Citation | undefined) {
