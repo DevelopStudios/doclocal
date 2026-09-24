@@ -14,7 +14,9 @@ jest.mock('@doclocal/data-rag', () => ({ RagService: class RagService {} }));
 let nextId = 0;
 Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `id-${nextId++}`, configurable: true });
 
-function setup() {
+interface RagState { ready: boolean; progress?: { done: number; total: number }; error?: string | null }
+
+function setup(rag: RagState = { ready: true }) {
     const tokens = new Subject<{ token: string }>();
     TestBed.configureTestingModule({
         providers: [
@@ -26,7 +28,14 @@ function setup() {
                     generate$: () => tokens,
                 },
             },
-            { provide: RagService, useValue: { query$: () => of([]), overview: () => [] } },
+            {
+                provide: RagService,
+                useValue: {
+                    query$: () => of([]), overview: () => [],
+                    ready: signal(rag.ready), indexing: signal(!rag.ready && !rag.error),
+                    progress: signal(rag.progress ?? { done: 0, total: 0 }), error: signal(rag.error ?? null),
+                },
+            },
         ],
     });
     const fixture = TestBed.createComponent(ChatPanelComponent);
@@ -53,5 +62,33 @@ describe('ChatPanelComponent suggested questions', () => {
         fixture.componentInstance.submit('What is this?');
         fixture.detectChanges();
         expect(suggestions()).toHaveLength(0);
+    });
+});
+
+describe('ChatPanelComponent indexing state', () => {
+    // ngModel applies `disabled` to the textarea asynchronously; the composer's class is synchronous.
+    const composer = (el: HTMLElement) => ({ disabled: !!el.querySelector('.composer--disabled') });
+    const status = (el: HTMLElement) => el.querySelector('.index-status')?.textContent?.trim();
+
+    it('shows indexing progress and keeps the composer disabled until the index is ready', () => {
+        const { el } = setup({ ready: false, progress: { done: 16, total: 47 } });
+        expect(status(el)).toBe('Indexing document… 16 / 47');
+        expect(composer(el).disabled).toBe(true);
+    });
+
+    it('does not offer suggestions before the index is ready', () => {
+        expect(setup({ ready: false, progress: { done: 0, total: 47 } }).suggestions()).toHaveLength(0);
+    });
+
+    it('shows an indexing error where the user can see it', () => {
+        const { el } = setup({ ready: false, error: 'Model not ready' });
+        expect(el.querySelector('[role=alert]')?.textContent).toContain('Model not ready');
+        expect(composer(el).disabled).toBe(true);
+    });
+
+    it('enables the composer and hides the status once the index is ready', () => {
+        const { el } = setup({ ready: true });
+        expect(status(el)).toBeUndefined();
+        expect(composer(el).disabled).toBe(false);
     });
 });
