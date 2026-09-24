@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
+import type { RagResult } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 import { RagService } from '@doclocal/data-rag';
 import { ChatPanelComponent } from './chat-panel.component';
@@ -16,7 +17,7 @@ Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `id-${next
 
 interface RagState { ready: boolean; progress?: { done: number; total: number }; error?: string | null }
 
-function setup(rag: RagState = { ready: true }) {
+function setup(rag: RagState = { ready: true }, results$: Observable<RagResult[]> = of([])) {
     const tokens = new Subject<{ token: string }>();
     TestBed.configureTestingModule({
         providers: [
@@ -31,7 +32,7 @@ function setup(rag: RagState = { ready: true }) {
             {
                 provide: RagService,
                 useValue: {
-                    query$: () => of([]), overview: () => [],
+                    query$: () => results$, overview: () => [],
                     ready: signal(rag.ready), indexing: signal(!rag.ready && !rag.error),
                     progress: signal(rag.progress ?? { done: 0, total: 0 }), error: signal(rag.error ?? null),
                 },
@@ -90,5 +91,43 @@ describe('ChatPanelComponent indexing state', () => {
         const { el } = setup({ ready: true });
         expect(status(el)).toBeUndefined();
         expect(composer(el).disabled).toBe(false);
+    });
+});
+
+describe('ChatPanelComponent answer stages', () => {
+    const result = (id: string): RagResult => ({ chunk: { id, text: 'x', pageNumber: 1, startWord: 0 }, score: 1 });
+    const lastMessage = (el: HTMLElement) => [...el.querySelectorAll('chat-message')].at(-1)?.textContent?.replace('▋', '').trim();
+
+    it('says what it is doing before the first token arrives, then shows the answer', () => {
+        const results$ = new Subject<RagResult[]>();
+        const { fixture, el, tokens } = setup({ ready: true }, results$);
+        fixture.componentInstance.submit('What is this?');
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Searching document…');
+
+        results$.next([result('a'), result('b'), result('c')]);
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
+
+        // A marker streamed in ahead of any text keeps the stage up rather than blanking the bubble.
+        tokens.next({ token: '[' });
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
+        tokens.next({ token: '1] ' });
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
+
+        tokens.next({ token: 'It is' });
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('It is');
+    });
+
+    it('uses the singular for one excerpt', () => {
+        const results$ = new Subject<RagResult[]>();
+        const { fixture, el } = setup({ ready: true }, results$);
+        fixture.componentInstance.submit('What is this?');
+        results$.next([result('a')]);
+        fixture.detectChanges();
+        expect(lastMessage(el)).toBe('Reading 1 excerpt…');
     });
 });

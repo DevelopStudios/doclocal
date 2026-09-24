@@ -12,4 +12,6 @@
     content: string;
     citations?: Citation[];
     streaming?: boolean;
+    /** What an assistant message is doing before its first token, e.g. "Searching document…". */
+    stage?: string;
   }

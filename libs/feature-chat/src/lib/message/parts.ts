@@ -6,9 +6,11 @@ export type Part = TextPart | CitePart;
 
 /**
  * Splits an answer into text runs and `[n]` citation chips. Markers before any answer text are
- * dropped: a citation that opens the answer supports no claim.
+ * dropped: a citation that opens the answer supports no claim. A marker still being streamed in
+ * (a trailing `[` or `[1`) is hidden until it completes.
  */
 export function parseParts(content: string, citations: Citation[]): Part[] {
+  content = content.replace(/\[\d*$/, '');
   const result: Part[] = [];
   let last = 0;
   let hasText = false;

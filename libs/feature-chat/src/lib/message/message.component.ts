@@ -39,6 +39,7 @@
         color: var(--color-text-muted); margin-bottom: 4px;
       }
       .cursor { animation: blink 1s step-end infinite; color: var(--color-accent); }
+      .stage { color: var(--color-text-muted); font-style: italic; }
       @keyframes blink { 50% { opacity: 0; } }
     `],
     template: `
@@ -70,6 +71,9 @@
                 }
               </button>
             }
+          }
+          @if (message().streaming && !hasText() && message().stage) {
+            <span class="stage">{{ message().stage }}</span>
           }
           @if (message().streaming) {
             <span class="cursor">▋</span>
@@ -108,4 +112,7 @@
       const { content, citations = [] } = this.message();
       return parseParts(content, citations);
     });
+
+    /** Whether any answer text is visible yet; until then the stage label stays up. */
+    hasText = computed(() => this.parts().some(p => p.type === 'text' && p.value.trim() !== ''));
   }
