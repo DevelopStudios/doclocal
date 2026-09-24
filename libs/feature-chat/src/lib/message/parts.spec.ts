@@ -29,6 +29,25 @@ describe('parseParts', () => {
         expect(parseParts('Alpha [1', citations)).toEqual([{ type: 'text', value: 'Alpha ' }]);
     });
 
+    it('drops a placeholder marker copied from the prompt, with the space before it', () => {
+        expect(parseParts('training, and education? [n]', citations)).toEqual([
+            { type: 'text', value: 'training, and education?' },
+        ]);
+        expect(parseParts('Alpha [N] beta [1].', citations)).toEqual([
+            { type: 'text', value: 'Alpha beta ' },
+            { type: 'cite', value: '[1]', citation: citations[0] },
+            { type: 'text', value: '.' },
+        ]);
+    });
+
+    it('hides a placeholder marker that is still being streamed in', () => {
+        expect(parseParts('Alpha [n', citations)).toEqual([{ type: 'text', value: 'Alpha ' }]);
+    });
+
+    it('keeps longer bracketed text, which is not a placeholder', () => {
+        expect(parseParts('He wrote [sic] twice.', citations)).toEqual([{ type: 'text', value: 'He wrote [sic] twice.' }]);
+    });
+
     it('keeps an out-of-range marker as a chip without a citation', () => {
         expect(parseParts('Alpha [9]', citations)[1]).toEqual({ type: 'cite', value: '[9]', citation: undefined });
     });

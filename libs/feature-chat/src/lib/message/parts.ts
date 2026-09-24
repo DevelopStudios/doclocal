@@ -7,10 +7,11 @@ export type Part = TextPart | CitePart;
 /**
  * Splits an answer into text runs and `[n]` citation chips. Markers before any answer text are
  * dropped: a citation that opens the answer supports no claim. A marker still being streamed in
- * (a trailing `[` or `[1`) is hidden until it completes.
+ * (a trailing `[`, `[1` or `[n`) is hidden until it completes, and a one-letter placeholder like
+ * `[n]`, copied from the prompt's citation rule, is dropped with the space before it.
  */
 export function parseParts(content: string, citations: Citation[]): Part[] {
-  content = content.replace(/\[\d*$/, '');
+  content = content.replace(/\s*\[[a-zA-Z]\]/g, '').replace(/\[(?:\d*|[a-zA-Z])$/, '');
   const result: Part[] = [];
   let last = 0;
   let hasText = false;
