@@ -18,7 +18,7 @@
     <aside class="sidebar">
       @if (doc()) {
         <div class="doc-card">
-          <div class="doc-name">{{ doc()!.filename }}</div>
+          <div class="doc-name" [title]="doc()!.filename">{{ doc()!.filename }}</div>
           <div class="doc-meta">
             {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
           </div>
