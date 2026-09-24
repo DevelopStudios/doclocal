@@ -19,6 +19,7 @@ interface RagState { ready: boolean; progress?: { done: number; total: number };
 
 function setup(rag: RagState = { ready: true }, results$: Observable<RagResult[]> = of([])) {
     const tokens = new Subject<{ token: string }>();
+    const generate = jest.fn(() => tokens);
     TestBed.configureTestingModule({
         providers: [
             {
@@ -26,7 +27,7 @@ function setup(rag: RagState = { ready: true }, results$: Observable<RagResult[]
                 useValue: {
                     loaded: signal(true), loading: signal(false), error: signal<string | null>(null),
                     tokensPerSec: signal(0), loadProgress: signal(1),
-                    generate$: () => tokens,
+                    generate$: generate,
                 },
             },
             {
@@ -43,7 +44,7 @@ function setup(rag: RagState = { ready: true }, results$: Observable<RagResult[]
     fixture.componentRef.setInput('docLoaded', true);
     fixture.detectChanges();
     const el: HTMLElement = fixture.nativeElement;
-    return { fixture, el, tokens, suggestions: () => el.querySelectorAll('.suggested-item') };
+    return { fixture, el, tokens, generate, suggestions: () => el.querySelectorAll('.suggested-item') };
 }
 
 describe('ChatPanelComponent suggested questions', () => {
@@ -145,11 +146,24 @@ describe('ChatPanelComponent failures', () => {
     });
 
     it('reports a failed generation and lets the user ask again', () => {
-        const { fixture, el, tokens } = setup({ ready: true });
+        const excerpt: RagResult = { chunk: { id: 'a', text: 'x', pageNumber: 1, startWord: 0 }, score: 1 };
+        const { fixture, el, tokens } = setup({ ready: true }, of([excerpt]));
         fixture.componentInstance.submit('What is this?');
         tokens.error(new Error('Engine not loaded'));
         fixture.detectChanges();
         expect(lastMessage(el)).toBe('Error: Engine not loaded');
+        expect(fixture.componentInstance.streaming()).toBe(false);
+    });
+});
+
+describe('ChatPanelComponent with nothing retrieved', () => {
+    it('says it could not find an answer without asking the model to make one up', () => {
+        const { fixture, el, generate } = setup({ ready: true }, of([]));
+        fixture.componentInstance.submit('What salary should a nurse ask for?');
+        fixture.detectChanges();
+        expect([...el.querySelectorAll('chat-message')].at(-1)?.textContent?.trim())
+            .toBe("I couldn't find that in the document.");
+        expect(generate).not.toHaveBeenCalled();
         expect(fixture.componentInstance.streaming()).toBe(false);
     });
 });

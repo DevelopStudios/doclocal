@@ -8,7 +8,7 @@ import { ComposerComponent } from '../composer/composer.component';
 import type { Message, Citation } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
 import { citedSpans, repairCitations, spansForCitation } from './citations';
-import { buildPrompt } from './prompt';
+import { buildPrompt, NOT_FOUND } from './prompt';
 import { isOverviewQuestion } from './question-kind';
 
 @Component({
@@ -125,6 +125,14 @@ export class ChatPanelComponent {
     const results$ = isOverviewQuestion(question) ? of(this.rag.overview(8)) : this.rag.query$(question, 3);
 
     results$.subscribe({ error: fail, next: results => {
+      if (results.length === 0) {
+        // With no excerpts, the model can only make an answer up.
+        this.messages.update(m =>
+          m.map(msg => msg.id === assistantId ? { ...msg, content: NOT_FOUND, streaming: false } : msg)
+        );
+        this.streaming.set(false);
+        return;
+      }
       const citations: Citation[] = results.map(r => ({
         chunkId: r.chunk.id,
         text: r.chunk.text,
@@ -133,8 +141,7 @@ export class ChatPanelComponent {
         score: r.score,
       }));
       this.citationsChanged.emit([]);
-      const stage = results.length === 0 ? 'Writing answer…'
-        : `Reading ${results.length} ${results.length === 1 ? 'excerpt' : 'excerpts'}…`;
+      const stage = `Reading ${results.length} ${results.length === 1 ? 'excerpt' : 'excerpts'}…`;
       this.messages.update(m => m.map(msg => msg.id === assistantId ? { ...msg, stage } : msg));
 
       let fullContent = '';
