@@ -1,0 +1,33 @@
+// pdf.js creates these elements at runtime, outside Angular's style scoping.
+// Text-layer positioning follows pdfjs-dist/web/pdf_viewer.css (Apache-2.0).
+pdf-page {
+  canvas { display: block; }
+  .pdf-text-layer {
+    position: absolute; inset: 0; overflow: clip; line-height: 1;
+    text-align: initial; text-size-adjust: none; forced-color-adjust: none;
+    transform-origin: 0 0; caret-color: black;
+    --scale-round-x: 1px;
+    --scale-round-y: 1px;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+    :is(span, br) {
+      color: transparent; position: absolute; white-space: pre;
+      cursor: text; transform-origin: 0% 0%;
+    }
+    > :not(.markedContent), .markedContent span:not(.markedContent) {
+      --font-height: 0;
+      --scale-x: 1;
+      --rotate: 0deg;
+      font-size: calc(var(--text-scale-factor) * var(--font-height));
+      transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+    }
+    &[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+    &[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+    &[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+    .markedContent { display: contents; }
+    ::selection { background: rgb(70 110 240 / 35%); }
+  }
+  .pdf-highlight-layer { position: absolute; inset: 0; pointer-events: none; }
+  .citation-highlight { position: absolute; background: rgb(255 193 7 / 35%); border-radius: 2px; }
+}

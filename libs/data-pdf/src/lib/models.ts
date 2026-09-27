@@ -20,4 +20,8 @@ export interface PdfChunk {
     fileSize: number;
     pages: string[];
     chunks: PdfChunk[];
+    /** Original bytes for faithful local rendering; absent on text-only fixtures. */
+    source?: Uint8Array;
+    /** Unscaled viewport sizes, including page rotation. */
+    pageSizes?: { width: number; height: number }[];
   } 
