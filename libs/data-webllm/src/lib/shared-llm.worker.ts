@@ -21,6 +21,7 @@ let lastProgress = 0;
 
 // Generations run one at a time; the engine is shared between tabs.
 let queue: Promise<void> = Promise.resolve();
+let runningReqId: string | null = null;
 
 const broadcast = (msg: unknown) => {
   for (const port of ports) port.postMessage(msg);
@@ -64,6 +65,7 @@ const generate = async (prompt: string, reqId: string, port: MessagePort) => {
     port.postMessage({ type: 'error', reqId, message: 'Engine not loaded' });
     return;
   }
+  runningReqId = reqId;
   try {
     await engine.resetChat();
     const stream = await engine.chat.completions.create({
@@ -82,6 +84,7 @@ const generate = async (prompt: string, reqId: string, port: MessagePort) => {
       port.postMessage({ type: 'error', reqId, message: (e as Error).message });
     }
   } finally {
+    runningReqId = null;
     aborted.delete(reqId);
     activeReqs.delete(reqId);
   }
@@ -108,7 +111,7 @@ onconnect = (e: MessageEvent) => {
       case 'abort':
         if (activeReqs.has(reqId)) {
           aborted.add(reqId);
-          engine?.interruptGenerate();
+          if (runningReqId === reqId) engine?.interruptGenerate();
         }
         break;
     }

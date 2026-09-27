@@ -43,6 +43,14 @@ import { Component, effect, inject, OnInit, signal } from '@angular/core';
       this.llm.load();
     }
 
+    replaceDocument() {
+      this.doc.set(null);
+      this.rag.clear();
+      this.highlights.set([]);
+      this.ragResults.set([]);
+      this.activePage.set(1);
+    }
+
     async onFileSelected(file: File) {
       this.parsing.set(true);   
       this.parseError.set(null);                 

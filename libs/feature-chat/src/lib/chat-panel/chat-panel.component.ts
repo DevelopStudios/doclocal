@@ -1,5 +1,5 @@
-import { Component, inject, input, output, signal } from '@angular/core';
-import { of } from 'rxjs';
+import { Component, inject, input, output, signal, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { of, Subscription } from 'rxjs';
 import { RagService } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 import { StatusChipComponent } from '@doclocal/ui-kit';
@@ -74,7 +74,8 @@ import { isOverviewQuestion } from './question-kind';
     </div>
   `,
 })
-export class ChatPanelComponent {
+export class ChatPanelComponent implements OnChanges, OnDestroy {
+  private pending = new Subscription();
   readonly llm = inject(LlmService);
   readonly rag = inject(RagService);
 
@@ -88,6 +89,20 @@ export class ChatPanelComponent {
     'Are there any action items?',
   ]);
   streaming = signal(false);
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['docLoaded']) {
+      this.pending.unsubscribe();
+      this.pending = new Subscription();
+      this.messages.set([]);
+      this.streaming.set(false);
+      this.citationsChanged.emit([]);
+    }
+  }
+
+  ngOnDestroy() {
+    this.pending.unsubscribe();
+  }
 
   onCitationClicked(msg: Message, citation: Citation) {
     this.citationsChanged.emit(spansForCitation(msg.content, msg.citations ?? [], citation));
@@ -124,7 +139,9 @@ export class ChatPanelComponent {
     // the top few by similarity would only cover the handful of pages nearest the question.
     const results$ = isOverviewQuestion(question) ? of(this.rag.overview(8)) : this.rag.query$(question, 3);
 
-    results$.subscribe({ error: fail, next: results => {
+    this.pending.unsubscribe();
+    this.pending = new Subscription();
+    this.pending.add(results$.subscribe({ error: fail, next: results => {
       if (results.length === 0) {
         // With no excerpts, the model can only make an answer up.
         this.messages.update(m =>
@@ -148,7 +165,7 @@ export class ChatPanelComponent {
       let tokenCount = 0;
       let firstTokenAt = 0;
 
-      this.llm.generate$(buildPrompt(results, question)).subscribe({
+      this.pending.add(this.llm.generate$(buildPrompt(results, question)).subscribe({
         next: ({ token }) => {
           fullContent += token;
           // Each streamed chunk is one token; time from the first token so prompt prefill isn't counted.
@@ -171,8 +188,8 @@ export class ChatPanelComponent {
           );
           this.streaming.set(false);
         },
-      });
-    } });
+      }));
+    } }));
   }
   get loadProgress() {
   return this.llm.loadProgress();
