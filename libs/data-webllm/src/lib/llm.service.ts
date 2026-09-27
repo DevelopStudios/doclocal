@@ -58,7 +58,10 @@ export const DEFAULT_MODEL = 'Qwen2.5-3B-Instruct-q4f16_1-MLC';
 
         this.port.addEventListener('message', handler);
         this.port.postMessage({ type: 'generate', prompt, reqId });
-        return () => this.port.postMessage({ type: 'abort', reqId });
+        return () => {
+          this.port.removeEventListener('message', handler);
+          this.port.postMessage({ type: 'abort', reqId });
+        };
       });   
     }
   }

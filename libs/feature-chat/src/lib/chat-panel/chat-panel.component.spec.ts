@@ -167,3 +167,61 @@ describe('ChatPanelComponent with nothing retrieved', () => {
         expect(fixture.componentInstance.streaming()).toBe(false);
     });
 });
+
+describe('document replacement (#31)', () => {
+    const excerpt: RagResult = { chunk: { id: 'old', text: 'Resume advice', pageNumber: 14, startWord: 0 }, score: 1 };
+
+    it('clears completed answers and citations when the document is removed', () => {
+        const { fixture, tokens, el } = setup({ ready: true }, of([excerpt]));
+        const panel = fixture.componentInstance;
+        panel.submit('What is this?');
+        tokens.next({ token: 'Resume advice [1]' });
+        tokens.complete();
+        fixture.detectChanges();
+        expect(el.querySelectorAll('chat-message')).toHaveLength(2);
+        const spans: unknown[] = [];
+        panel.citationsChanged.subscribe(value => spans.push(value));
+        fixture.componentRef.setInput('docLoaded', false);
+        fixture.detectChanges();
+        expect(el.querySelectorAll('chat-message')).toHaveLength(0);
+        expect(spans.at(-1)).toEqual([]);
+        fixture.componentRef.setInput('docLoaded', true);
+        fixture.detectChanges();
+        expect(el.querySelectorAll('.suggested-item')).toHaveLength(3);
+    });
+
+    it('cancels pending retrieval so it cannot start an old answer after replacement', () => {
+        const results = new Subject<RagResult[]>();
+        const { fixture, generate } = setup({ ready: true }, results);
+        fixture.componentInstance.submit('Old question');
+        fixture.componentRef.setInput('docLoaded', false);
+        fixture.detectChanges();
+        results.next([excerpt]);
+        expect(generate).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.streaming()).toBe(false);
+        expect(fixture.componentInstance.messages()).toEqual([]);
+    });
+
+    it('cancels generation and ignores late tokens and completion', () => {
+        const { fixture, tokens } = setup({ ready: true }, of([excerpt]));
+        const panel = fixture.componentInstance;
+        panel.submit('Old question');
+        fixture.componentRef.setInput('docLoaded', false);
+        fixture.detectChanges();
+        const spans: unknown[] = [];
+        panel.citationsChanged.subscribe(value => spans.push(value));
+        expect(tokens.observed).toBe(false);
+        tokens.next({ token: 'Late answer [1]' });
+        tokens.complete();
+        expect(panel.messages()).toEqual([]);
+        expect(panel.streaming()).toBe(false);
+        expect(spans).toEqual([]);
+    });
+
+    it('unsubscribes from generation when the chat is destroyed', () => {
+        const { fixture, tokens } = setup({ ready: true }, of([excerpt]));
+        fixture.componentInstance.submit('Old question');
+        fixture.destroy();
+        expect(tokens.observed).toBe(false);
+    });
+});

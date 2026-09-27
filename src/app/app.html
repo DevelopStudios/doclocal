@@ -22,7 +22,7 @@
           <div class="doc-meta">
             {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
           </div>
-          <button class="replace-btn" (click)="doc.set(null); rag.clear()">
+          <button class="replace-btn" (click)="replaceDocument()">
             Replace document
           </button>
         </div>
