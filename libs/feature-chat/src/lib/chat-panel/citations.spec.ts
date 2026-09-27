@@ -121,3 +121,31 @@ describe('spansForCitation', () => {
         expect(spans).toEqual([{ chunkId: 'c1', pageNumber: 2, startWord: 10, endWord: 20 }]);
     });
 });
+
+describe('highlight fallback (#33)', () => {
+    const excerpts = [
+        cite('p14', 'Objective statement. Vague: the reader cannot determine the target. Self-serving: about personal needs. Fluffy: unnecessary language.', 8, 14),
+        cite('p13', 'Objective statement. Objective statement describes the job target.', 0, 13),
+        cite('p15', 'Objective statement. Objective statement examples.', 0, 15),
+    ];
+
+    it('highlights the best supporting segment when distinctive words are split across segments', () => {
+        const spans = citedSpans('A vague, fluffy objective statement is ineffective [1].', excerpts);
+        expect(spans).toEqual([{ chunkId: 'p14', pageNumber: 14, startWord: 10, endWord: 11 }]);
+    });
+
+    it('can highlight shared topic words when the claim has no distinctive keywords', () => {
+        expect(citedSpans('Objective statement [1].', excerpts))
+            .toEqual([{ chunkId: 'p14', pageNumber: 14, startWord: 8, endWord: 10 }]);
+    });
+
+    it('does not manufacture automatic highlights for unrelated claims or invalid sources', () => {
+        expect(citedSpans('Nurses negotiate salary [1].', excerpts)).toEqual([]);
+        expect(citedSpans("I couldn't find that in the document. [1]", excerpts)).toEqual([]);
+        expect(citedSpans('Objective statement [9].', excerpts)).toEqual([]);
+    });
+
+    it('does not highlight another excerpt when only that excerpt supports the claim', () => {
+        expect(citedSpans('Solar panels generate electricity [1].', [excerpts[0], cite('solar', 'Solar panels generate electricity.')])).toEqual([]);
+    });
+});
