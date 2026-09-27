@@ -82,7 +82,8 @@ export function repairCitations(content: string, citations: Citation[]): string 
 /**
  * Word ranges in the cited excerpts that support each `[n]` claim in the answer. A sentence of
  * excerpt n supports the claim when they share at least two distinctive keywords — ones that
- * appear in few sentences across all excerpts (at most 2, or a tenth of them), so words like "work" or "days" can't match alone.
+ * appear in few sentences across all excerpts (at most 2, or a tenth of them), so words like "work" or "days" can't match alone. If none pass, select the best
+ * supported segment within the cited excerpt using rarity-weighted overlap.
  */
 export function citedSpans(content: string, citations: Citation[]): HighlightSpan[] {
     const segmented = citations.map(c => {
@@ -105,16 +106,30 @@ export function citedSpans(content: string, citations: Citation[]): HighlightSpa
 
     for (const match of content.matchAll(/\[(\d+)\]/g)) {
         const between = content.slice(prevEnd, match.index);
-        if (keywords(between).size > 0) claim = [...claimBefore(between)].filter(t => docFreq.has(t) && distinctive(t));
+        if (keywords(between).size > 0) claim = [...claimBefore(between)].filter(t => docFreq.has(t));
         prevEnd = match.index + match[0].length;
 
         const index = parseInt(match[1], 10) - 1;
         const citation = citations[index];
         if (!citation || claim.length === 0) continue;
 
-        const needed = Math.min(2, claim.length);
-        for (const seg of segmented[index]) {
-            if (claim.filter(t => seg.keywords.has(t)).length < needed) continue;
+        const distinctiveClaim = claim.filter(distinctive);
+        const needed = Math.min(2, distinctiveClaim.length);
+        let matches = needed > 0 ? segmented[index].filter(seg =>
+            distinctiveClaim.filter(t => seg.keywords.has(t)).length >= needed) : [];
+
+        // If strict matching found nothing, use the best lexical support in this cited
+        // excerpt only. Rare words outweigh repeated headings; no overlap means no highlight.
+        if (matches.length === 0) {
+            const ranked = segmented[index].map(seg => {
+                const overlap = claim.filter(t => seg.keywords.has(t));
+                const supported = overlap.length >= 2 || overlap.some(distinctive);
+                const score = supported ? overlap.reduce((sum, t) => sum + 1 / (docFreq.get(t) ?? 1), 0) : 0;
+                return { seg, score };
+            }).sort((a, b) => b.score - a.score);
+            if (ranked[0]?.score > 0) matches = [ranked[0].seg];
+        }
+        for (const seg of matches) {
             const key = `${citation.chunkId}:${seg.start}`;
             if (seen.has(key)) continue;
             seen.add(key);
