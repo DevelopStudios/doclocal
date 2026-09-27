@@ -1,0 +1,4 @@
+:host { display: block; width: 100%; }
+.page-surface { position: relative; background: white; color: #111; width: 100%; overflow: hidden; }
+.page-status { position: absolute; inset: 0; display: grid; place-content: center; padding: 16px; font: 13px sans-serif; }
+.page-status button { margin-top: 8px; }
