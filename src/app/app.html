@@ -7,7 +7,8 @@
           class="theme-btn"
           [class.active]="theme() === t"
           [attr.aria-pressed]="theme() === t"
-          (click)="theme.set(t)">
+          (click)="theme.set(t)"
+        >
           {{ t }}
         </button>
       }
@@ -22,9 +23,7 @@
           <div class="doc-meta">
             {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
           </div>
-          <button class="replace-btn" (click)="replaceDocument()">
-            Replace document
-          </button>
+          <button class="replace-btn" (click)="replaceDocument()">Replace document</button>
         </div>
       } @else {
         <div class="doc-empty">No document loaded</div>
@@ -32,7 +31,11 @@
     </aside>
 
     <section class="chat-col">
-      <chat-panel [docLoaded]="!!doc()" (citationsChanged)="onCitationsChanged($event)" />
+      <chat-panel
+        [docLoaded]="!!doc()"
+        [documentVersion]="documentVersion()"
+        (citationsChanged)="onCitationsChanged($event)"
+      />
     </section>
 
     <section class="pdf-col">
@@ -55,8 +58,16 @@
       } @else {
         <div class="upload-wrapper">
           <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
-          @if (parsing()) { <p class="status-text">Parsing document…</p> }
-          @if (parseError()) { <p class="error-text">{{ parseError() }}</p> }
+          <p class="notice-text" role="note">
+            The PDF is read in your browser, but its text and your questions are sent to NVIDIA NIM
+            through the DocLocal backend. Use documents you are comfortable sharing.
+          </p>
+          @if (parsing()) {
+            <p class="status-text">Parsing document…</p>
+          }
+          @if (parseError()) {
+            <p class="error-text">{{ parseError() }}</p>
+          }
         </div>
       }
     </section>
