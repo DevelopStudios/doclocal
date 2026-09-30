@@ -9,7 +9,8 @@
     "start": "nx serve",
     "build": "nx build",
     "watch": "nx build --watch --configuration development",
-    "test": "nx test"
+    "test": "nx test",
+    "test:proxy": "node --test tools/dev-proxy/backend-proxy.test.mjs"
   },
   "prettier": {
     "printWidth": 100,
