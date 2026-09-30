@@ -497,6 +497,117 @@ describe('BackendService', () => {
       });
     });
 
+    describe('expired-session recovery', () => {
+      const deferred = (): { promise: Promise<unknown>; resolve: (v: unknown) => void } => {
+        let resolve!: (v: unknown) => void;
+        const promise = new Promise((r) => (resolve = r));
+        return { promise, resolve };
+      };
+      const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+      const calls = (): [string, RequestInit][] => fetchMock.mock.calls as [string, RequestInit][];
+      const deletes = (): string[] =>
+        calls()
+          .filter(([, init]) => init?.method === 'DELETE')
+          .map(([url]) => url);
+      const lastChatSession = (): unknown =>
+        JSON.parse(
+          calls()
+            .filter(([url]) => url === '/api/chat')
+            .at(-1)?.[1].body as string,
+        ).session_id;
+      const recoverThenAnswer = (id: string): void => {
+        fetchMock
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: id }) })
+          .mockResolvedValueOnce({ ok: true })
+          .mockResolvedValueOnce({ ok: true, body: sseBody('event: done\ndata: {}\n\n') });
+      };
+
+      it('deletes the orphan and re-runs recovery when Stop cancels recovery indexing', async () => {
+        const indexing = deferred();
+        fetchMock
+          .mockResolvedValueOnce({ ok: false, status: 404 })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: 's2' }) })
+          .mockImplementationOnce(() => indexing.promise);
+        const sub = service.chat$('q').subscribe({ error: () => undefined });
+        await tick();
+        sub.unsubscribe();
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+        indexing.resolve({ ok: true });
+        await tick();
+        expect(deletes()).toEqual(['/api/sessions/s2']);
+        expect(service.sessionStatus()).toBe('ready');
+
+        recoverThenAnswer('s3');
+        await collect();
+        expect(lastChatSession()).toBe('s3');
+        expect(calls().some(([url, init]) => url === '/api/chat' && !init.body)).toBe(false);
+      });
+
+      it('never chats against a recovered session whose indexing was cancelled', async () => {
+        const indexing = deferred();
+        fetchMock
+          .mockResolvedValueOnce({ ok: false, status: 404 })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: 's2' }) })
+          .mockImplementationOnce(() => indexing.promise);
+        const sub = service.chat$('q').subscribe({ error: () => undefined });
+        await tick();
+        sub.unsubscribe();
+        // Ask again before the cancelled index request settles.
+        recoverThenAnswer('s3');
+        await collect();
+        expect(lastChatSession()).toBe('s3');
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+        indexing.resolve({ ok: true });
+        await tick();
+        expect(deletes()).toEqual(['/api/sessions/s2']);
+      });
+
+      it('reports a failed recovery clearly, deletes the orphan, and allows retry', async () => {
+        fetchMock
+          .mockResolvedValueOnce({ ok: false, status: 404 })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: 's2' }) })
+          .mockResolvedValueOnce({ ok: false, status: 503 })
+          .mockResolvedValueOnce({ ok: true, status: 204 });
+        await expect(collect()).rejects.toThrow(/expired.*503.*ask again.*replace the document/is);
+        await tick();
+        expect(deletes()).toEqual(['/api/sessions/s2']);
+        expect(service.sessionStatus()).toBe('ready');
+
+        recoverThenAnswer('s3');
+        await collect();
+        expect(lastChatSession()).toBe('s3');
+      });
+
+      it('replacement racing recovery keeps the new session and deletes only the orphan', async () => {
+        const indexing = deferred();
+        fetchMock
+          .mockResolvedValueOnce({ ok: false, status: 404 })
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: 'orphan' }) })
+          .mockImplementationOnce(() => indexing.promise);
+        const error = jest.fn();
+        service.chat$('q').subscribe({ error });
+        await tick();
+
+        // Replace the document. The expired session was already detached, so nothing to DELETE.
+        await lastValueFrom(service.deleteSession$(), { defaultValue: undefined });
+        fetchMock
+          .mockResolvedValueOnce({ ok: true, json: async () => ({ sessionId: 'new' }) })
+          .mockResolvedValueOnce({ ok: true });
+        await lastValueFrom(service.indexDocument$([]));
+
+        fetchMock.mockResolvedValueOnce({ ok: true, status: 204 });
+        indexing.resolve({ ok: true });
+        await tick();
+        expect(error).not.toHaveBeenCalled();
+        expect(deletes()).toEqual(['/api/sessions/orphan']);
+        expect(service.sessionStatus()).toBe('ready');
+
+        fetchMock.mockResolvedValueOnce({ ok: true, body: sseBody('event: done\ndata: {}\n\n') });
+        await collect();
+        expect(lastChatSession()).toBe('new');
+      });
+    });
+
     it('drops a stream silently once the document is replaced', async () => {
       let push!: (text: string) => void;
       const body = new ReadableStream<Uint8Array>({

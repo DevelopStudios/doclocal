@@ -97,20 +97,11 @@ export class BackendService {
       void this.remove(sessionId).catch(() => undefined);
       this.current(generation, signal);
     }
-    this.sessionId = sessionId;
     return sessionId;
   }
 
-  private async index(
-    chunks: PdfChunk[],
-    generation: number,
-    signal: AbortSignal,
-    recover = true,
-  ): Promise<void> {
-    this.current(generation, signal);
-    const id = this.sessionId ?? (await this.create(generation, signal));
-    this.current(generation, signal);
-    const response = await this.request(
+  private post(id: string, chunks: PdfChunk[], signal: AbortSignal): Promise<Response> {
+    return this.request(
       '/documents/index',
       {
         session_id: id,
@@ -123,12 +114,51 @@ export class BackendService {
       },
       signal,
     );
+  }
+
+  private async index(
+    chunks: PdfChunk[],
+    generation: number,
+    signal: AbortSignal,
+    recover = true,
+  ): Promise<void> {
+    this.current(generation, signal);
+    const id = this.sessionId ?? (this.sessionId = await this.create(generation, signal));
+    this.current(generation, signal);
+    const response = await this.post(id, chunks, signal);
     this.current(generation, signal);
     if (response.status === 404 && recover) {
       this.sessionId = null;
       return this.index(chunks, generation, signal, false);
     }
     if (!response.ok) throw new BackendHttpError(response.status);
+  }
+
+  /**
+   * Rebuilds an expired session for the current document. The new session is only published once
+   * indexing succeeds for this generation; a cancelled or failed attempt deletes it, so a later
+   * question can never reach an empty index and retries recovery instead.
+   */
+  private async recover(
+    chunks: PdfChunk[],
+    generation: number,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const id = await this.create(generation, signal);
+    try {
+      const response = await this.post(id, chunks, signal);
+      this.current(generation, signal);
+      if (!response.ok) throw new BackendHttpError(response.status);
+    } catch (error) {
+      void this.remove(id).catch(() => undefined);
+      if ((error as Error).name === 'AbortError') throw error;
+      throw new Error(
+        `The backend session expired and could not be restored: ${(error as Error).message} ` +
+          'Ask again to retry, or replace the document.',
+      );
+    }
+    this.sessionId = id;
+    return id;
   }
 
   indexDocument$(chunks: PdfChunk[]): Observable<void> {
@@ -172,21 +202,19 @@ export class BackendService {
       const run = async (): Promise<void> => {
         try {
           this.current(generation, controller.signal);
-          let response = await this.request(
-            '/chat',
-            { session_id: this.sessionId, question },
-            controller.signal,
-          );
+          // A null session means an earlier recovery was cancelled or failed; retry it once.
+          const recovered = !this.sessionId;
+          let id = this.sessionId ?? (await this.recover(chunks, generation, controller.signal));
+          const ask = () => this.request('/chat', { session_id: id, question }, controller.signal);
+          let response = await ask();
           this.current(generation, controller.signal);
           if (response.status === 404) {
-            this.sessionId = null;
-            await this.index(chunks, generation, controller.signal, false);
-            this.current(generation, controller.signal);
-            response = await this.request(
-              '/chat',
-              { session_id: this.sessionId, question },
-              controller.signal,
-            );
+            // Detach only the expired session; a newer one must survive.
+            if (this.sessionId === id) this.sessionId = null;
+            if (!recovered) {
+              id = await this.recover(chunks, generation, controller.signal);
+              response = await ask();
+            }
           }
           this.current(generation, controller.signal);
           if (!response.ok) throw new BackendHttpError(response.status);
