@@ -65,6 +65,10 @@
     },
     "serve": {
       "executor": "@angular/build:dev-server",
+      "options": {
+        "host": "127.0.0.1",
+        "proxyConfig": "proxy.conf.mjs"
+      },
       "configurations": {
         "production": {
           "buildTarget": "doclocal:build:production"

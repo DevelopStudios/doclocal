@@ -1,41 +1,99 @@
-import { Component, inject, input, output, signal, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
-import { of, Subscription } from 'rxjs';
-import { RagService } from '@doclocal/data-rag';
-import { LlmService } from '@doclocal/data-webllm';
-import { StatusChipComponent } from '@doclocal/ui-kit';
+import {
+  Component,
+  computed,
+  inject,
+  input,
+  OnChanges,
+  OnDestroy,
+  output,
+  signal,
+  SimpleChanges,
+} from '@angular/core';
+import { Subscription } from 'rxjs';
+import { BackendService } from '@doclocal/data-backend';
+import type { BackendChatEvent } from '@doclocal/data-backend';
 import { MessageComponent } from '../message/message.component';
 import { ComposerComponent } from '../composer/composer.component';
-import type { Message, Citation } from '../model';
+import type { Citation, Message } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
 import { citedSpans, repairCitations, spansForCitation } from './citations';
-import { buildPrompt, NOT_FOUND } from './prompt';
-import { isOverviewQuestion } from './question-kind';
 
 @Component({
   selector: 'chat-panel',
   standalone: true,
-  imports: [MessageComponent, ComposerComponent, StatusChipComponent],
-  styles: [`
-    :host { display: flex; flex-direction: column; height: 100%; }
-    .messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex;
-      flex-direction: column; gap: 4px; }
-    .suggested { display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-      padding: 0 16px 8px; }
-    .suggested-label {
-      font-size: 11px; font-family: var(--font-mono); color: var(--color-text-muted);
-      text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    .suggested-item {
-      background: var(--color-surface); border: 1px solid var(--color-border);
-      border-radius: 999px; padding: 4px 12px; font-size: 12px;
-      color: var(--color-text-muted); cursor: pointer; transition: border-color 0.15s, color 0.15s;
-    }
-    .suggested-item:hover { border-color: var(--color-accent); color: var(--color-text); }
-    .bottom { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-    .index-status { font-size: 12px; font-family: var(--font-mono); color: var(--color-text-muted); }
-    .index-error { font-size: 12px; color: #f87171; }
-    .status-row { display: flex; justify-content: flex-end; }
-  `],
+  imports: [MessageComponent, ComposerComponent],
+  styles: [
+    `
+      :host {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .suggested {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 0 16px 8px;
+      }
+      .suggested-label {
+        font-size: 11px;
+        font-family: var(--font-mono);
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .suggested-item {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .suggested-item:hover {
+        border-color: var(--color-accent);
+        color: var(--color-text);
+      }
+      .bottom {
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .index-status {
+        font-size: 12px;
+        font-family: var(--font-mono);
+        color: var(--color-text-muted);
+      }
+      .index-error {
+        font-size: 12px;
+        color: #f87171;
+      }
+      .backend-status {
+        font-size: 12px;
+        font-family: var(--font-mono);
+        color: var(--color-text-muted);
+      }
+      .truncated-warning {
+        font-size: 12px;
+        color: #fb923c;
+      }
+    `,
+  ],
   template: `
     <div class="messages" aria-live="polite" aria-label="Chat messages">
       @for (msg of messages(); track msg.id) {
@@ -43,8 +101,7 @@ import { isOverviewQuestion } from './question-kind';
       }
     </div>
 
-    <!-- Starters for an empty conversation; once it has begun they only take up space. -->
-    @if (suggested().length && docLoaded() && rag.ready() && messages().length === 0) {
+    @if (suggested().length && docLoaded() && indexReady() && messages().length === 0) {
       <div class="suggested">
         <span class="suggested-label">Try</span>
         @for (q of suggested(); track q) {
@@ -54,32 +111,31 @@ import { isOverviewQuestion } from './question-kind';
     }
 
     <div class="bottom">
-      @if (docLoaded() && rag.error()) {
-        <p class="index-error" role="alert">Couldn't index this document: {{ rag.error() }}</p>
-      } @else if (docLoaded() && !rag.ready()) {
-        <p class="index-status" role="status">Indexing document… {{ rag.progress().done }} / {{ rag.progress().total }}</p>
+      @if (docLoaded() && backend.sessionError()) {
+        <p class="index-error" role="alert">
+          Couldn't index this document: {{ backend.sessionError() }}
+        </p>
+      } @else if (docLoaded() && backend.sessionStatus() === 'indexing') {
+        <p class="backend-status" role="status">Indexing with NVIDIA NIM…</p>
       }
-      <chat-composer
-        [disabled]="streaming() || !llm.loaded() || llm.loading() || !docLoaded() || !rag.ready()"
-        (submitted)="submit($event)"
-      />
-      <div class="status-row">
-        <ui-status-chip
-          [state]="llm.error() ? 'error' : llm.loading() ? 'loading' : llm.loaded() ? 'ready' : 'idle'"
-          [tokensPerSec]="llm.tokensPerSec()"
-          [loadProgress]="loadProgress"
-          [errorMessage]="llm.error()"
-        />
-      </div>
+      @if (truncated()) {
+        <p class="truncated-warning">Answer may be truncated (hit token limit).</p>
+      }
+      @if (streaming()) {
+        <button class="suggested-item" aria-label="Stop generating" (click)="stop()">
+          Stop generating
+        </button>
+      }
+      <chat-composer [disabled]="composerDisabled()" (submitted)="submit($event)" />
     </div>
   `,
 })
 export class ChatPanelComponent implements OnChanges, OnDestroy {
   private pending = new Subscription();
-  readonly llm = inject(LlmService);
-  readonly rag = inject(RagService);
+  readonly backend = inject(BackendService);
 
   docLoaded = input<boolean>(false);
+  documentVersion = input<number>(0);
   citationsChanged = output<HighlightSpan[]>();
 
   messages = signal<Message[]>([]);
@@ -89,109 +145,155 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
     'Are there any action items?',
   ]);
   streaming = signal(false);
+  truncated = signal(false);
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['docLoaded']) {
+  indexReady = computed(() => this.backend.sessionStatus() === 'ready');
+
+  composerDisabled = computed(() => this.streaming() || !this.docLoaded() || !this.indexReady());
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['docLoaded'] || changes['documentVersion']) {
       this.pending.unsubscribe();
       this.pending = new Subscription();
       this.messages.set([]);
       this.streaming.set(false);
+      this.truncated.set(false);
       this.citationsChanged.emit([]);
     }
   }
 
-  ngOnDestroy() {
+  ngOnDestroy(): void {
     this.pending.unsubscribe();
   }
 
-  onCitationClicked(msg: Message, citation: Citation) {
+  onCitationClicked(msg: Message, citation: Citation): void {
     this.citationsChanged.emit(spansForCitation(msg.content, msg.citations ?? [], citation));
   }
 
-  onSuggestedClick(q: string, e: MouseEvent) {
+  onSuggestedClick(q: string, e: MouseEvent): void {
     (e.currentTarget as HTMLElement).blur();
     this.submit(q);
   }
 
-  submit(question: string) {
-    if (this.streaming() || !this.llm.loaded() || !this.docLoaded() || !this.rag.ready()) return;
-
-    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: question };
-    const assistantId = crypto.randomUUID();
-    const assistantMsg: Message = {
-      id: assistantId, role: 'assistant', content: '', streaming: true, stage: 'Searching document…',
-    };
-
-    this.messages.update(m => [...m, userMsg, assistantMsg]);
+  submit(question: string): void {
+    if (this.composerDisabled()) return;
+    const { userMsg, assistantMsg, assistantId } = this.makeAssistantPair(question);
+    this.messages.update((m) => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
+    this.truncated.set(false);
+    this.citationsChanged.emit([]);
 
-    // Retrieval and generation can each fail; either way, say so and let the user ask again.
-    const fail = (err: Error) => {
-      this.messages.update(m =>
-        m.map(msg => msg.id === assistantId
-          ? { ...msg, content: `Error: ${err.message}`, streaming: false }
-          : msg)
-      );
-      this.streaming.set(false);
-    };
-
-    // Whole-document questions ("Summarize this document") get excerpts from across the document;
-    // the top few by similarity would only cover the handful of pages nearest the question.
-    const results$ = isOverviewQuestion(question) ? of(this.rag.overview(8)) : this.rag.query$(question, 3);
+    let citations: Citation[] = [];
+    let fullContent = '';
 
     this.pending.unsubscribe();
     this.pending = new Subscription();
-    this.pending.add(results$.subscribe({ error: fail, next: results => {
-      if (results.length === 0) {
-        // With no excerpts, the model can only make an answer up.
-        this.messages.update(m =>
-          m.map(msg => msg.id === assistantId ? { ...msg, content: NOT_FOUND, streaming: false } : msg)
-        );
-        this.streaming.set(false);
-        return;
-      }
-      const citations: Citation[] = results.map(r => ({
-        chunkId: r.chunk.id,
-        text: r.chunk.text,
-        pageNumber: r.chunk.pageNumber,
-        startWord: r.chunk.startWord,
-        score: r.score,
-      }));
-      this.citationsChanged.emit([]);
-      const stage = `Reading ${results.length} ${results.length === 1 ? 'excerpt' : 'excerpts'}…`;
-      this.messages.update(m => m.map(msg => msg.id === assistantId ? { ...msg, stage } : msg));
 
-      let fullContent = '';
-      let tokenCount = 0;
-      let firstTokenAt = 0;
-
-      this.pending.add(this.llm.generate$(buildPrompt(results, question)).subscribe({
-        next: ({ token }) => {
-          fullContent += token;
-          // Each streamed chunk is one token; time from the first token so prompt prefill isn't counted.
-          tokenCount++;
-          if (tokenCount === 1) firstTokenAt = Date.now();
-          const elapsed = (Date.now() - firstTokenAt) / 1000;
-          if (elapsed > 0) this.llm.tokensPerSec.set(Math.round((tokenCount - 1) / elapsed));
-          this.messages.update(m =>
-            m.map(msg => msg.id === assistantId
-              ? { ...msg, content: fullContent, citations }
-              : msg)
-          );
+    this.pending.add(
+      this.backend.chat$(question).subscribe({
+        next: (event: BackendChatEvent) => {
+          if (event.type === 'citations') {
+            citations = event.citations.map((c) => ({
+              chunkId: c.chunkId,
+              text: c.text,
+              pageNumber: c.pageNumber,
+              startWord: c.startWord,
+              score: c.score,
+            }));
+            const stage =
+              citations.length > 0
+                ? `Reading ${citations.length} ${citations.length === 1 ? 'excerpt' : 'excerpts'}…`
+                : 'Generating answer…';
+            this.messages.update((m) =>
+              m.map((msg) => (msg.id === assistantId ? { ...msg, stage, citations } : msg)),
+            );
+          } else if (event.type === 'token') {
+            fullContent += event.token;
+            this.messages.update((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, content: fullContent, citations } : msg,
+              ),
+            );
+          } else if (event.type === 'done') {
+            if (event.finishReason === 'length') this.truncated.set(true);
+            // gpt-oss can spend the whole token budget reasoning and return no visible text.
+            const content =
+              repairCitations(fullContent, citations) ||
+              (event.finishReason === 'length'
+                ? 'No answer: the model hit its token limit. Try a narrower question.'
+                : '');
+            this.citationsChanged.emit(citedSpans(content, citations));
+            this.messages.update((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, content, citations, streaming: false } : msg,
+              ),
+            );
+            this.streaming.set(false);
+          } else {
+            const errText = event.retryable ? `${event.message} (retryable)` : event.message;
+            const content = fullContent
+              ? `${fullContent}\n\nAnswer incomplete. ${errText} [${event.code}]`
+              : `Error: ${errText}`;
+            this.messages.update((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, content, streaming: false } : msg,
+              ),
+            );
+            this.streaming.set(false);
+          }
         },
-        error: fail,
-        complete: () => {
-          const content = repairCitations(fullContent, citations);
-          this.citationsChanged.emit(citedSpans(content, citations));
-          this.messages.update(m =>
-            m.map(msg => msg.id === assistantId ? { ...msg, content, streaming: false } : msg)
-          );
-          this.streaming.set(false);
-        },
-      }));
-    } }));
+        error: (err: Error) => this.fail(assistantId, err),
+      }),
+    );
   }
-  get loadProgress() {
-  return this.llm.loadProgress();
+
+  private makeAssistantPair(question: string): {
+    userMsg: Message;
+    assistantMsg: Message;
+    assistantId: string;
+  } {
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: question };
+    const assistantId = crypto.randomUUID();
+    const assistantMsg: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      stage: 'Sending to NVIDIA NIM…',
+    };
+    return { userMsg, assistantMsg, assistantId };
+  }
+
+  stop(): void {
+    this.pending.unsubscribe();
+    this.pending = new Subscription();
+    this.messages.update((messages) =>
+      messages.map((message) =>
+        message.streaming
+          ? {
+              ...message,
+              content: `${message.content}${message.content ? '\n\n' : ''}Cancelled — answer incomplete.`,
+              streaming: false,
+              stage: undefined,
+            }
+          : message,
+      ),
+    );
+    this.streaming.set(false);
+  }
+
+  private fail(assistantId: string, err: Error): void {
+    this.messages.update((m) =>
+      m.map((msg) =>
+        msg.id === assistantId
+          ? {
+              ...msg,
+              content: `${msg.content}${msg.content ? '\n\nAnswer incomplete. ' : ''}Error: ${err.message}`,
+              streaming: false,
+            }
+          : msg,
+      ),
+    );
+    this.streaming.set(false);
   }
 }

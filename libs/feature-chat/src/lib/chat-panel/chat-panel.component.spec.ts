@@ -1,227 +1,244 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Observable, Subject, of, throwError } from 'rxjs';
-import type { RagResult } from '@doclocal/data-rag';
-import { LlmService } from '@doclocal/data-webllm';
-import { RagService } from '@doclocal/data-rag';
+import { Subject } from 'rxjs';
+import type { BackendChatEvent, BackendCitation } from '@doclocal/data-backend';
+import { BackendService } from '@doclocal/data-backend';
 import { ChatPanelComponent } from './chat-panel.component';
 
-// The real services start Web Workers via import.meta.url, which Jest can't load; stand-in
-// classes keep the injection tokens the component asks for.
-jest.mock('@doclocal/data-webllm', () => ({ LlmService: class LlmService {} }));
-jest.mock('@doclocal/data-rag', () => ({ RagService: class RagService {} }));
+// The chat must never load the browser model runtimes; importing them at runtime fails the suite.
+jest.mock('@doclocal/data-webllm', () => {
+  throw new Error('chat panel must not load the WebLLM runtime');
+});
+jest.mock('@doclocal/data-rag', () => {
+  throw new Error('chat panel must not load the local embedding runtime');
+});
 
 // jsdom has no crypto.randomUUID (used for message ids).
 let nextId = 0;
-Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `id-${nextId++}`, configurable: true });
+Object.defineProperty(globalThis.crypto, 'randomUUID', {
+  value: () => `id-${nextId++}`,
+  configurable: true,
+});
 
-interface RagState { ready: boolean; progress?: { done: number; total: number }; error?: string | null }
+type Status = 'none' | 'creating' | 'ready' | 'indexing' | 'error';
 
-function setup(rag: RagState = { ready: true }, results$: Observable<RagResult[]> = of([])) {
-    const tokens = new Subject<{ token: string }>();
-    const generate = jest.fn(() => tokens);
-    TestBed.configureTestingModule({
-        providers: [
-            {
-                provide: LlmService,
-                useValue: {
-                    loaded: signal(true), loading: signal(false), error: signal<string | null>(null),
-                    tokensPerSec: signal(0), loadProgress: signal(1),
-                    generate$: generate,
-                },
-            },
-            {
-                provide: RagService,
-                useValue: {
-                    query$: () => results$, overview: () => [],
-                    ready: signal(rag.ready), indexing: signal(!rag.ready && !rag.error),
-                    progress: signal(rag.progress ?? { done: 0, total: 0 }), error: signal(rag.error ?? null),
-                },
-            },
-        ],
-    });
-    const fixture = TestBed.createComponent(ChatPanelComponent);
-    fixture.componentRef.setInput('docLoaded', true);
-    fixture.detectChanges();
-    const el: HTMLElement = fixture.nativeElement;
-    return { fixture, el, tokens, generate, suggestions: () => el.querySelectorAll('.suggested-item') };
+function setup(status: Status = 'ready', error: string | null = null) {
+  const events = new Subject<BackendChatEvent>();
+  const chat = jest.fn(() => events);
+  TestBed.configureTestingModule({
+    providers: [
+      {
+        provide: BackendService,
+        useValue: {
+          sessionStatus: signal<Status>(status),
+          sessionError: signal<string | null>(error),
+          chat$: chat,
+        },
+      },
+    ],
+  });
+  const fixture = TestBed.createComponent(ChatPanelComponent);
+  fixture.componentRef.setInput('docLoaded', true);
+  fixture.detectChanges();
+  const el: HTMLElement = fixture.nativeElement;
+  const spans: unknown[] = [];
+  fixture.componentInstance.citationsChanged.subscribe((value) => spans.push(value));
+  return {
+    fixture,
+    el,
+    events,
+    chat,
+    spans,
+    panel: fixture.componentInstance,
+    backend: TestBed.inject(BackendService),
+    suggestions: () => el.querySelectorAll('.suggested .suggested-item'),
+    lastMessage: () =>
+      [...el.querySelectorAll('chat-message')].at(-1)?.textContent?.replace('▋', '').trim(),
+  };
 }
 
+const citation = (chunkId: string, text = 'The deadline is Friday.'): BackendCitation => ({
+  chunkId,
+  text,
+  pageNumber: 2,
+  startWord: 0,
+  score: 0.9,
+});
+
 describe('ChatPanelComponent suggested questions', () => {
-    it('offers suggestions before the conversation starts', () => {
-        expect(setup().suggestions()).toHaveLength(3);
-    });
+  it('offers suggestions before the conversation starts', () => {
+    expect(setup().suggestions()).toHaveLength(3);
+  });
 
-    it('hides suggestions once a question is asked', () => {
-        const { fixture, suggestions } = setup();
-        (suggestions()[0] as HTMLButtonElement).click();
-        fixture.detectChanges();
-        expect(suggestions()).toHaveLength(0);
-    });
-
-    it('hides suggestions after a typed question too', () => {
-        const { fixture, suggestions } = setup();
-        fixture.componentInstance.submit('What is this?');
-        fixture.detectChanges();
-        expect(suggestions()).toHaveLength(0);
-    });
+  it('hides suggestions once a question is asked', () => {
+    const { fixture, suggestions } = setup();
+    (suggestions()[0] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(suggestions()).toHaveLength(0);
+  });
 });
 
 describe('ChatPanelComponent indexing state', () => {
-    // ngModel applies `disabled` to the textarea asynchronously; the composer's class is synchronous.
-    const composer = (el: HTMLElement) => ({ disabled: !!el.querySelector('.composer--disabled') });
-    const status = (el: HTMLElement) => el.querySelector('.index-status')?.textContent?.trim();
+  // ngModel applies `disabled` to the textarea asynchronously; the composer's class is synchronous.
+  const disabled = (el: HTMLElement) => !!el.querySelector('.composer--disabled');
+  const status = (el: HTMLElement) => el.querySelector('[role=status]')?.textContent?.trim();
 
-    it('shows indexing progress and keeps the composer disabled until the index is ready', () => {
-        const { el } = setup({ ready: false, progress: { done: 16, total: 47 } });
-        expect(status(el)).toBe('Indexing document… 16 / 47');
-        expect(composer(el).disabled).toBe(true);
-    });
+  it('shows NIM indexing and keeps the composer disabled until the session is ready', () => {
+    const { el, suggestions } = setup('indexing');
+    expect(status(el)).toBe('Indexing with NVIDIA NIM…');
+    expect(disabled(el)).toBe(true);
+    expect(suggestions()).toHaveLength(0);
+  });
 
-    it('does not offer suggestions before the index is ready', () => {
-        expect(setup({ ready: false, progress: { done: 0, total: 47 } }).suggestions()).toHaveLength(0);
-    });
+  it('shows an indexing error where the user can see it', () => {
+    const { el } = setup('error', 'Backend request failed (503).');
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('503');
+    expect(disabled(el)).toBe(true);
+  });
 
-    it('shows an indexing error where the user can see it', () => {
-        const { el } = setup({ ready: false, error: 'Model not ready' });
-        expect(el.querySelector('[role=alert]')?.textContent).toContain('Model not ready');
-        expect(composer(el).disabled).toBe(true);
-    });
+  it('enables the composer once the session is ready', () => {
+    const { el } = setup('ready');
+    expect(status(el)).toBeUndefined();
+    expect(disabled(el)).toBe(false);
+  });
 
-    it('enables the composer and hides the status once the index is ready', () => {
-        const { el } = setup({ ready: true });
-        expect(status(el)).toBeUndefined();
-        expect(composer(el).disabled).toBe(false);
-    });
+  it('ignores submissions before the session is ready', () => {
+    const { panel, chat } = setup('none');
+    panel.submit('Too early');
+    expect(chat).not.toHaveBeenCalled();
+    expect(panel.messages()).toEqual([]);
+  });
 });
 
-describe('ChatPanelComponent answer stages', () => {
-    const result = (id: string): RagResult => ({ chunk: { id, text: 'x', pageNumber: 1, startWord: 0 }, score: 1 });
-    const lastMessage = (el: HTMLElement) => [...el.querySelectorAll('chat-message')].at(-1)?.textContent?.replace('▋', '').trim();
+describe('ChatPanelComponent streamed answers', () => {
+  it('shows stages, streams tokens and emits cited spans when done', () => {
+    const { fixture, events, chat, spans, lastMessage, panel } = setup();
+    panel.submit('When is it due?');
+    fixture.detectChanges();
+    expect(chat).toHaveBeenCalledWith('When is it due?');
+    expect(lastMessage()).toBe('Sending to NVIDIA NIM…');
 
-    it('says what it is doing before the first token arrives, then shows the answer', () => {
-        const results$ = new Subject<RagResult[]>();
-        const { fixture, el, tokens } = setup({ ready: true }, results$);
-        fixture.componentInstance.submit('What is this?');
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Searching document…');
+    events.next({ type: 'citations', citations: [citation('a'), citation('b'), citation('c')] });
+    fixture.detectChanges();
+    expect(lastMessage()).toBe('Reading 3 excerpts…');
 
-        results$.next([result('a'), result('b'), result('c')]);
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
+    // A marker streamed in ahead of any text keeps the stage up rather than blanking the bubble.
+    events.next({ type: 'token', token: '[' });
+    fixture.detectChanges();
+    expect(lastMessage()).toBe('Reading 3 excerpts…');
 
-        // A marker streamed in ahead of any text keeps the stage up rather than blanking the bubble.
-        tokens.next({ token: '[' });
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
-        tokens.next({ token: '1] ' });
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Reading 3 excerpts…');
+    events.next({ type: 'token', token: '1] The deadline is Friday [1].' });
+    events.next({ type: 'done' });
+    fixture.detectChanges();
+    expect(panel.streaming()).toBe(false);
+    expect(panel.messages().at(-1)?.citations).toHaveLength(3);
+    const last = spans.at(-1) as { chunkId: string; pageNumber: number }[];
+    expect(last.length).toBeGreaterThan(0);
+    expect(last[0]).toEqual(expect.objectContaining({ chunkId: 'a', pageNumber: 2 }));
+  });
 
-        tokens.next({ token: 'It is' });
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('It is');
-    });
+  it('uses the singular for one excerpt', () => {
+    const { fixture, events, lastMessage, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'citations', citations: [citation('a')] });
+    fixture.detectChanges();
+    expect(lastMessage()).toBe('Reading 1 excerpt…');
+  });
 
-    it('uses the singular for one excerpt', () => {
-        const results$ = new Subject<RagResult[]>();
-        const { fixture, el } = setup({ ready: true }, results$);
-        fixture.componentInstance.submit('What is this?');
-        results$.next([result('a')]);
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Reading 1 excerpt…');
-    });
+  it('flags a length-limited answer and explains an empty one', () => {
+    const { fixture, events, el, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'citations', citations: [] });
+    events.next({ type: 'done', finishReason: 'length' });
+    fixture.detectChanges();
+    expect(el.querySelector('.truncated-warning')).toBeTruthy();
+    expect(panel.messages().at(-1)?.content).toMatch(/token limit/);
+  });
 });
 
 describe('ChatPanelComponent failures', () => {
-    const lastMessage = (el: HTMLElement) => [...el.querySelectorAll('chat-message')].at(-1)?.textContent?.replace('▋', '').trim();
+  it('shows a backend error event and lets the user ask again', () => {
+    const { fixture, events, lastMessage, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'error', message: 'NIM is busy', code: 'upstream', retryable: true });
+    fixture.detectChanges();
+    expect(lastMessage()).toBe('Error: NIM is busy (retryable)');
+    expect(panel.streaming()).toBe(false);
+    expect(panel.composerDisabled()).toBe(false);
+  });
 
-    it('reports a failed retrieval and lets the user ask again', () => {
-        const { fixture, el } = setup({ ready: true }, throwError(() => new Error('Embedding worker crashed')));
-        fixture.componentInstance.submit('What is this?');
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Error: Embedding worker crashed');
-        expect(fixture.componentInstance.streaming()).toBe(false);
-        expect(el.querySelector('.cursor')).toBeNull();
-    });
+  it('keeps partial text and marks it incomplete on a mid-answer error event', () => {
+    const { events, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'token', token: 'Partial answer' });
+    events.next({ type: 'error', message: 'Stream cut', code: 'upstream', retryable: false });
+    expect(panel.messages().at(-1)?.content).toBe(
+      'Partial answer\n\nAnswer incomplete. Stream cut [upstream]',
+    );
+  });
 
-    it('reports a failed generation and lets the user ask again', () => {
-        const excerpt: RagResult = { chunk: { id: 'a', text: 'x', pageNumber: 1, startWord: 0 }, score: 1 };
-        const { fixture, el, tokens } = setup({ ready: true }, of([excerpt]));
-        fixture.componentInstance.submit('What is this?');
-        tokens.error(new Error('Engine not loaded'));
-        fixture.detectChanges();
-        expect(lastMessage(el)).toBe('Error: Engine not loaded');
-        expect(fixture.componentInstance.streaming()).toBe(false);
-    });
+  it('keeps partial text when the connection fails', () => {
+    const { events, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'token', token: 'Partial answer' });
+    events.error(new Error('Stream closed without a terminal event; answer is incomplete.'));
+    expect(panel.messages().at(-1)?.content).toContain('Partial answer');
+    expect(panel.messages().at(-1)?.content).toContain('Answer incomplete');
+    expect(panel.streaming()).toBe(false);
+  });
 });
 
-describe('ChatPanelComponent with nothing retrieved', () => {
-    it('says it could not find an answer without asking the model to make one up', () => {
-        const { fixture, el, generate } = setup({ ready: true }, of([]));
-        fixture.componentInstance.submit('What salary should a nurse ask for?');
-        fixture.detectChanges();
-        expect([...el.querySelectorAll('chat-message')].at(-1)?.textContent?.trim())
-            .toBe("I couldn't find that in the document.");
-        expect(generate).not.toHaveBeenCalled();
-        expect(fixture.componentInstance.streaming()).toBe(false);
-    });
+describe('ChatPanelComponent Stop', () => {
+  it('cancels the stream and preserves partial text', () => {
+    const { fixture, events, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'token', token: 'Partial answer' });
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector(
+      '[aria-label="Stop generating"]',
+    ) as HTMLButtonElement;
+    button.click();
+    expect(events.observed).toBe(false);
+    expect(panel.streaming()).toBe(false);
+    expect(panel.messages().at(-1)?.content).toBe(
+      'Partial answer\n\nCancelled — answer incomplete.',
+    );
+  });
 });
 
 describe('document replacement (#31)', () => {
-    const excerpt: RagResult = { chunk: { id: 'old', text: 'Resume advice', pageNumber: 14, startWord: 0 }, score: 1 };
+  it('clears answers and citations when the document is removed', () => {
+    const { fixture, events, el, spans, panel } = setup();
+    panel.submit('q');
+    events.next({ type: 'citations', citations: [citation('a')] });
+    events.next({ type: 'token', token: 'The deadline is Friday [1].' });
+    events.next({ type: 'done' });
+    fixture.detectChanges();
+    expect(el.querySelectorAll('chat-message')).toHaveLength(2);
+    fixture.componentRef.setInput('docLoaded', false);
+    fixture.detectChanges();
+    expect(el.querySelectorAll('chat-message')).toHaveLength(0);
+    expect(spans.at(-1)).toEqual([]);
+  });
 
-    it('clears completed answers and citations when the document is removed', () => {
-        const { fixture, tokens, el } = setup({ ready: true }, of([excerpt]));
-        const panel = fixture.componentInstance;
-        panel.submit('What is this?');
-        tokens.next({ token: 'Resume advice [1]' });
-        tokens.complete();
-        fixture.detectChanges();
-        expect(el.querySelectorAll('chat-message')).toHaveLength(2);
-        const spans: unknown[] = [];
-        panel.citationsChanged.subscribe(value => spans.push(value));
-        fixture.componentRef.setInput('docLoaded', false);
-        fixture.detectChanges();
-        expect(el.querySelectorAll('chat-message')).toHaveLength(0);
-        expect(spans.at(-1)).toEqual([]);
-        fixture.componentRef.setInput('docLoaded', true);
-        fixture.detectChanges();
-        expect(el.querySelectorAll('.suggested-item')).toHaveLength(3);
-    });
+  it('cancels a streaming answer and ignores late events after replacement', () => {
+    const { fixture, events, spans, panel } = setup();
+    panel.submit('Old question');
+    fixture.componentRef.setInput('documentVersion', 1);
+    fixture.detectChanges();
+    const before = spans.length;
+    expect(events.observed).toBe(false);
+    events.next({ type: 'token', token: 'Late answer [1]' });
+    events.next({ type: 'done' });
+    expect(panel.messages()).toEqual([]);
+    expect(panel.streaming()).toBe(false);
+    expect(spans).toHaveLength(before);
+  });
 
-    it('cancels pending retrieval so it cannot start an old answer after replacement', () => {
-        const results = new Subject<RagResult[]>();
-        const { fixture, generate } = setup({ ready: true }, results);
-        fixture.componentInstance.submit('Old question');
-        fixture.componentRef.setInput('docLoaded', false);
-        fixture.detectChanges();
-        results.next([excerpt]);
-        expect(generate).not.toHaveBeenCalled();
-        expect(fixture.componentInstance.streaming()).toBe(false);
-        expect(fixture.componentInstance.messages()).toEqual([]);
-    });
-
-    it('cancels generation and ignores late tokens and completion', () => {
-        const { fixture, tokens } = setup({ ready: true }, of([excerpt]));
-        const panel = fixture.componentInstance;
-        panel.submit('Old question');
-        fixture.componentRef.setInput('docLoaded', false);
-        fixture.detectChanges();
-        const spans: unknown[] = [];
-        panel.citationsChanged.subscribe(value => spans.push(value));
-        expect(tokens.observed).toBe(false);
-        tokens.next({ token: 'Late answer [1]' });
-        tokens.complete();
-        expect(panel.messages()).toEqual([]);
-        expect(panel.streaming()).toBe(false);
-        expect(spans).toEqual([]);
-    });
-
-    it('unsubscribes from generation when the chat is destroyed', () => {
-        const { fixture, tokens } = setup({ ready: true }, of([excerpt]));
-        fixture.componentInstance.submit('Old question');
-        fixture.destroy();
-        expect(tokens.observed).toBe(false);
-    });
+  it('unsubscribes from the stream when the chat is destroyed', () => {
+    const { fixture, events, panel } = setup();
+    panel.submit('q');
+    fixture.destroy();
+    expect(events.observed).toBe(false);
+  });
 });

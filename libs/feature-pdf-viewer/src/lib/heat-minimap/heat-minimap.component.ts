@@ -1,5 +1,11 @@
 import { Component, computed, input, output } from '@angular/core';
-import type { RagResult } from '@doclocal/data-rag';
+import type { PdfChunk } from '@doclocal/data-pdf';
+
+/** A scored chunk. Declared here so the app need not depend on a retrieval implementation. */
+export interface HeatResult {
+  chunk: PdfChunk;
+  score: number;
+}
 
 interface PageHeat {
   pageNumber: number;
@@ -46,7 +52,7 @@ interface PageHeat {
 })
 export class HeatMinimapComponent {
   pageCount = input.required<number>();
-  ragResults = input<RagResult[]>([]);
+  ragResults = input<HeatResult[]>([]);
   activePage = input<number>(0);
   pageClicked = output<number>();
 
