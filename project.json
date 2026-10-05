@@ -9,7 +9,9 @@
   },
   "sourceRoot": "src",
   "prefix": "app",
-  "tags": ["scope:app"],
+  "tags": [
+    "scope:app"
+  ],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
@@ -34,7 +36,10 @@
         "styles": [
           "src/styles.scss"
         ],
-        "outputPath": "dist/doclocal"
+        "outputPath": "dist/doclocal",
+        "define": {
+          "DOCLOCAL_API_BASE_URL": "'/api'"
+        }
       },
       "configurations": {
         "production": {
@@ -50,7 +55,10 @@
               "maximumError": "8kB"
             }
           ],
-          "outputHashing": "all"
+          "outputHashing": "all",
+          "define": {
+            "DOCLOCAL_API_BASE_URL": "'https://doclocal-backend-iuy0x.sevalla.app'"
+          }
         },
         "development": {
           "optimization": false,

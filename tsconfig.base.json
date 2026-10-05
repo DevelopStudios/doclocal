@@ -13,7 +13,8 @@
       "@doclocal/data-webllm": ["./libs/data-webllm/src/index.ts"],
       "@doclocal/feature-chat": ["./libs/feature-chat/src/index.ts"],
       "@doclocal/feature-pdf-viewer": ["./libs/feature-pdf-viewer/src/index.ts"],
-      "@doclocal/data-backend": ["./libs/data-backend/src/index.ts"]
+      "@doclocal/data-backend": ["./libs/data-backend/src/index.ts"],
+      "@doclocal/data-auth": ["./libs/data-auth/src/index.ts"]
     }
   }
 }
