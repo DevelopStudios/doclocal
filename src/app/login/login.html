@@ -1,0 +1,52 @@
+<main class="login">
+  <form
+    class="card"
+    (submit)="submit($event, username.value)"
+    [attr.aria-busy]="auth.status() === 'signing-in'"
+  >
+    <h1 class="title">Sign in to DocLocal</h1>
+    <p class="hint">Use the username and password you were given.</p>
+
+    <label class="field">
+      <span>Username</span>
+      <input
+        #username
+        name="username"
+        type="text"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        maxlength="64"
+        required
+        [disabled]="auth.status() === 'signing-in' || !!auth.configError"
+      />
+    </label>
+
+    <label class="field">
+      <span>Password</span>
+      <input
+        #password
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        maxlength="256"
+        required
+        [disabled]="auth.status() === 'signing-in' || !!auth.configError"
+      />
+    </label>
+
+    @if (auth.configError) {
+      <p class="error" role="alert">Sign-in is misconfigured: {{ auth.configError }}</p>
+    } @else if (auth.error()) {
+      <p class="error" role="alert">{{ auth.error() }}</p>
+    }
+
+    <button
+      class="submit"
+      type="submit"
+      [disabled]="auth.status() === 'signing-in' || !!auth.configError"
+    >
+      {{ auth.status() === 'signing-in' ? 'Signing in…' : 'Sign in' }}
+    </button>
+  </form>
+</main>

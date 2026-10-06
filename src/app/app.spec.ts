@@ -1,27 +1,44 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, Subject, throwError } from 'rxjs';
-import { PdfService, PdfDocument } from '@doclocal/data-pdf';
+import { of } from 'rxjs';
+import { AuthService } from '@doclocal/data-auth';
+import type { AuthStatus, AuthUser } from '@doclocal/data-auth';
+import { PdfService } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
 import { App } from './app';
 
-describe('App (NVIDIA NIM backend)', () => {
-  let parse: jasmine.Spy;
-  let index: jasmine.Spy;
-  let remove: jasmine.Spy;
+describe('App (sign-in gate)', () => {
+  let status: ReturnType<typeof signal<AuthStatus>>;
+  let user: ReturnType<typeof signal<AuthUser | null>>;
+  let logout: jasmine.Spy;
 
   beforeEach(() => {
-    parse = jasmine.createSpy('parse');
-    index = jasmine.createSpy('index').and.returnValue(of(undefined));
-    remove = jasmine.createSpy('remove').and.returnValue(of(undefined));
+    status = signal<AuthStatus>('signed-out');
+    user = signal<AuthUser | null>(null);
+    logout = jasmine.createSpy('logout').and.resolveTo(undefined);
     TestBed.configureTestingModule({
       providers: [
-        { provide: PdfService, useValue: { parse } },
+        {
+          provide: AuthService,
+          useValue: {
+            status,
+            user,
+            logout,
+            error: signal(null),
+            configError: null,
+            baseUrl: '/api',
+            authorizationHeader: () => null,
+            handleUnauthorized: () => undefined,
+            login: jasmine.createSpy('login'),
+          },
+        },
+        // The workspace injects these; it is only created once signed in.
+        { provide: PdfService, useValue: { parse: jasmine.createSpy('parse') } },
         {
           provide: BackendService,
           useValue: {
-            indexDocument$: index,
-            deleteSession$: remove,
+            indexDocument$: jasmine.createSpy('index').and.returnValue(of(undefined)),
+            deleteSession$: jasmine.createSpy('remove').and.returnValue(of(undefined)),
             sessionStatus: signal('none'),
             sessionError: signal(null),
             chat$: jasmine.createSpy('chat$'),
@@ -31,85 +48,81 @@ describe('App (NVIDIA NIM backend)', () => {
     });
   });
 
-  const chunks = [{ id: 'c0', text: 'Synthetic text', pageNumber: 1, startWord: 0 }];
-  const doc = { filename: 'synthetic.pdf', chunks } as unknown as PdfDocument;
-  const file = new File(['synthetic'], 'synthetic.pdf');
-  const app = () => TestBed.runInInjectionContext(() => new App());
-
-  it('shows the upload with a NIM notice and no mode, token or model-loading UI', () => {
+  const render = () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('pdf-upload-dropzone')).toBeTruthy();
-    expect(el.querySelector('[role=note]')?.textContent).toContain('NVIDIA NIM');
-    expect(el.querySelector('input[type=password]')).toBeNull();
-    expect(el.querySelector('ui-status-chip')).toBeNull();
-    expect(el.textContent).not.toMatch(/WebGPU|Change mode|Local \(WebLLM\)/);
+    return fixture;
+  };
+
+  it('shows only the sign-in form while signed out', () => {
+    const el: HTMLElement = render().nativeElement;
+
+    expect(el.querySelector('app-login')).toBeTruthy();
+    expect(el.querySelector('app-workspace')).toBeNull();
+    // Nothing a document could be dropped on until someone has signed in.
+    expect(el.querySelector('pdf-upload-dropzone')).toBeNull();
   });
 
-  it('parses in the browser and indexes the chunks on the backend', async () => {
-    parse.and.resolveTo(doc);
-    const instance = app();
-    await instance.onFileSelected(file);
-    expect(parse).toHaveBeenCalledWith(file);
-    expect(index).toHaveBeenCalledWith(chunks);
-    expect(instance.doc()).toBe(doc);
-    expect(instance.parsing()).toBeFalse();
+  it('shows the workspace and who is signed in once signed in', () => {
+    status.set('signed-in');
+    user.set({ id: 'sign-in-1', username: 'alice' });
+
+    const el: HTMLElement = render().nativeElement;
+
+    expect(el.querySelector('app-workspace')).toBeTruthy();
+    expect(el.querySelector('app-login')).toBeNull();
+    expect(el.querySelector('.signed-in-as')?.textContent).toContain('alice');
   });
 
-  it('reports a parse failure without contacting the backend for indexing', async () => {
-    parse.and.rejectWith(new Error('Not a PDF'));
-    const instance = app();
-    await instance.onFileSelected(file);
-    expect(instance.parseError()).toBe('Not a PDF');
-    expect(index).not.toHaveBeenCalled();
+  it('destroys the workspace when the session ends, so nothing of it is left behind', () => {
+    status.set('signed-in');
+    user.set({ id: 'sign-in-1', username: 'alice' });
+    const fixture = render();
+    expect(fixture.nativeElement.querySelector('app-workspace')).toBeTruthy();
+
+    // What AuthService does on sign-out, expiry, or a 401 from any API call.
+    status.set('signed-out');
+    user.set(null);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-workspace')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-login')).toBeTruthy();
   });
 
-  it('suppresses a parse completing after the document is closed', async () => {
-    let finish!: (value: PdfDocument) => void;
-    parse.and.returnValue(new Promise<PdfDocument>((resolve) => (finish = resolve)));
-    const instance = app();
-    const pending = instance.onFileSelected(file);
-    instance.replaceDocument();
-    finish(doc);
-    await pending;
-    expect(instance.doc()).toBeNull();
-    expect(index).not.toHaveBeenCalled();
-    expect(instance.parsing()).toBeFalse();
+  it('lets the signed-in view fill the shell instead of collapsing to its content', () => {
+    // The shell is a flex column; App renders Workspace/Login through an extra element,
+    // so each must be a growing flex item or `flex: 1` inside it resolves against a host
+    // that never stretched and the whole view collapses to content height.
+    status.set('signed-in');
+    user.set({ id: 'sign-in-1', username: 'alice' });
+    const fixture = render();
+
+    const host = fixture.nativeElement.querySelector('app-workspace') as HTMLElement;
+    const style = getComputedStyle(host);
+
+    expect(style.display).toBe('flex');
+    expect(style.flexGrow).toBe('1');
   });
 
-  it('cancels indexing and deletes the session when the document is replaced', async () => {
-    const indexing = new Subject<void>();
-    index.and.returnValue(indexing);
-    parse.and.resolveTo(doc);
-    const instance = app();
-    await instance.onFileSelected(file);
-    remove.calls.reset();
-    instance.replaceDocument();
-    expect(indexing.observed).toBeFalse();
-    expect(remove).toHaveBeenCalledTimes(1);
-    expect(instance.doc()).toBeNull();
+  it('lets the signed-out view fill the shell too, so the form stays centred', () => {
+    const host = render().nativeElement.querySelector('app-login') as HTMLElement;
+    const style = getComputedStyle(host);
+
+    expect(style.display).toBe('flex');
+    expect(style.flexGrow).toBe('1');
   });
 
-  it('shows a cleanup notice when deleting the old session fails', () => {
-    remove.and.returnValue(throwError(() => new Error('down')));
-    const instance = app();
-    instance.replaceDocument();
-    expect(instance.parseError()).toContain('expire automatically');
+  it('revokes the session on the backend when signing out', () => {
+    status.set('signed-in');
+    user.set({ id: 'sign-in-1', username: 'alice' });
+    const fixture = render();
+
+    fixture.nativeElement.querySelector('.signout-btn').click();
+
+    expect(logout).toHaveBeenCalled();
   });
 
-  it('deletes the session on unload and on destroy', () => {
-    // Dispatching a real beforeunload would make Karma think the page reloaded.
-    const add = spyOn(window, 'addEventListener').and.callThrough();
-    const removeListener = spyOn(window, 'removeEventListener').and.callThrough();
-    const instance = app();
-    instance.ngOnInit();
-    const handler = add.calls.allArgs().find(([type]) => type === 'beforeunload')?.[1];
-    if (typeof handler !== 'function') return fail('beforeunload handler was not registered');
-    handler(new Event('beforeunload'));
-    expect(remove).toHaveBeenCalledTimes(1);
-    instance.ngOnDestroy();
-    expect(remove).toHaveBeenCalledTimes(2);
-    expect(removeListener).toHaveBeenCalledWith('beforeunload', handler);
+  it('offers no sign-out control while signed out', () => {
+    expect(render().nativeElement.querySelector('.signout-btn')).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import os from 'node:os';
 import { after, before, describe, it } from 'node:test';
 import { createServer } from 'vite';
 import {
+  attachProxyHandlers,
   backendTarget,
   backendToken,
   createBackendProxyConfig,
@@ -13,6 +14,43 @@ import {
 } from './backend-proxy.mjs';
 
 const TOKEN = 'synthetic-test-token_123';
+
+/** Runs the proxyReq hook against a stand-in request and reports the headers it set. */
+function forwardHeaders(token, incoming = {}) {
+  const headers = { ...incoming };
+  const proxyReq = {
+    getHeader: (name) => headers[name.toLowerCase()],
+    setHeader: (name, value) => {
+      headers[name.toLowerCase()] = value;
+    },
+    removeHeader: (name) => delete headers[name.toLowerCase()],
+  };
+  const handlers = {};
+  attachProxyHandlers({ on: (event, fn) => (handlers[event] = fn) }, token);
+  handlers.proxyReq(proxyReq);
+  return headers;
+}
+
+describe('attachProxyHandlers', () => {
+  it('keeps the header the browser signed in with', () => {
+    const headers = forwardHeaders(TOKEN, { authorization: 'Bearer mine' });
+    assert.equal(headers.authorization, 'Bearer mine');
+  });
+
+  it('adds the developer token when the request has no header of its own', () => {
+    assert.equal(forwardHeaders(TOKEN).authorization, `Bearer ${TOKEN}`);
+  });
+
+  it('invents no credential when no token is configured', () => {
+    // The backend must answer 401 and the app must show its sign-in, rather than the
+    // proxy quietly granting access nobody authenticated for.
+    assert.equal(forwardHeaders(null).authorization, undefined);
+  });
+
+  it('always strips cookies', () => {
+    assert.equal(forwardHeaders(null, { cookie: 'sid=1' }).cookie, undefined);
+  });
+});
 
 describe('backendTarget', () => {
   it('defaults to the loopback backend', () => {
@@ -39,9 +77,9 @@ describe('backendTarget', () => {
 });
 
 describe('backendToken', () => {
-  it('requires a token', () => {
-    assert.throws(() => backendToken({}), /DOCLOCAL_BACKEND_TOKEN is not set/);
-    assert.throws(() => backendToken({ DOCLOCAL_BACKEND_TOKEN: '  ' }), /not set/);
+  it('is optional, because the browser brings its own token from signing in', () => {
+    assert.equal(backendToken({}), null);
+    assert.equal(backendToken({ DOCLOCAL_BACKEND_TOKEN: '  ' }), null);
   });
 
   it('rejects header-unsafe values without echoing them', () => {
@@ -73,8 +111,8 @@ describe('stripApiPrefix', () => {
 });
 
 describe('createBackendProxyConfig', () => {
-  it('fails at startup when the token is missing', () => {
-    assert.throws(() => createBackendProxyConfig({}), /DOCLOCAL_BACKEND_TOKEN/);
+  it('starts without a token, so npm start works before anyone has signed in', () => {
+    assert.ok(createBackendProxyConfig({})['^/api(?=[/?]|$)']);
   });
 
   it('never exposes the token in serialisable config', () => {
@@ -122,7 +160,7 @@ describe('dev proxy (Vite) against a fake backend', () => {
     await new Promise((resolve) => backend?.close(resolve));
   });
 
-  it('strips /api and injects the server-side bearer token', async () => {
+  it("strips /api and forwards the browser's own sign-in token untouched", async () => {
     const response = await fetch(`${base}/api/sessions`, {
       method: 'POST',
       headers: { Authorization: 'Bearer from-browser', Cookie: 'sid=1' },
@@ -130,8 +168,16 @@ describe('dev proxy (Vite) against a fake backend', () => {
     assert.equal(response.status, 200);
     const request = seen.at(-1);
     assert.equal(request.url, '/sessions');
-    assert.equal(request.headers.authorization, `Bearer ${TOKEN}`);
+    // Overwriting this would authenticate the browser as the developer whether or not
+    // anyone signed in, which would make the sign-in untestable locally.
+    assert.equal(request.headers.authorization, 'Bearer from-browser');
     assert.equal(request.headers.cookie, undefined);
+  });
+
+  it('falls back to the developer token only when the request carries none', async () => {
+    const response = await fetch(`${base}/api/sessions`, { method: 'POST' });
+    assert.equal(response.status, 200);
+    assert.equal(seen.at(-1).headers.authorization, `Bearer ${TOKEN}`);
   });
 
   it('streams SSE through unchanged', async () => {

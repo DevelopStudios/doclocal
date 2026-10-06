@@ -1,10 +1,8 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { PdfChunk } from '@doclocal/data-pdf';
+import { AuthService } from '@doclocal/data-auth';
 import { parseSseFrames } from './sse-decoder';
-
-/** Same-origin prefix; the dev proxy (or a deployment's server-side proxy) adds credentials. */
-export const BACKEND_BASE = '/api';
 
 export interface BackendCitation {
   chunkId: string;
@@ -21,7 +19,7 @@ export type BackendChatEvent =
   | { type: 'error'; message: string; code: string; retryable: boolean };
 
 function httpHint(status: number): string {
-  if (status === 401) return 'The backend rejected the proxy token; check DOCLOCAL_BACKEND_TOKEN.';
+  if (status === 401) return 'Your session has ended. Sign in again.';
   if (status === 409) return 'Wait for indexing or replace the document.';
   if (status === 413) return 'This document is too large for the backend.';
   if (status === 429) return 'Please wait before trying again.';
@@ -39,6 +37,9 @@ export class BackendHttpError extends Error {
 
 @Injectable({ providedIn: 'root' })
 export class BackendService {
+  private readonly auth = inject(AuthService);
+  // The Authorization value each response was requested with, so a 401 ends the right sign-in.
+  private readonly sentWith = new WeakMap<Response, string | null>();
   private sessionId: string | null = null;
   private cachedChunks: PdfChunk[] = [];
   private generation = 0;
@@ -60,15 +61,36 @@ export class BackendService {
     this.controllers.clear();
   }
 
+  /** Every request carries this sign-in's token, so the backend owns documents per
+   * person rather than trusting whatever the dev proxy used to inject. */
+  private headers(extra: Record<string, string> = {}): Record<string, string> {
+    const authorization = this.auth.authorizationHeader();
+    return authorization ? { ...extra, Authorization: authorization } : extra;
+  }
+
+  /**
+   * A 401 means the token that sent the request is no longer good, so the sign-in ends
+   * rather than the request being retried. The token is the one this response was sent
+   * with, not the current one: a sign-in that happened while the request was in flight
+   * must not be cancelled by its reply.
+   */
+  private rejected(response: Response): BackendHttpError {
+    if (response.status === 401) this.auth.handleUnauthorized(this.sentWith.get(response) ?? null);
+    return new BackendHttpError(response.status);
+  }
+
   private async request(path: string, body: unknown, signal: AbortSignal): Promise<Response> {
-    return fetch(`${BACKEND_BASE}${path}`, {
+    const token = this.auth.authorizationHeader();
+    const response = await fetch(`${this.auth.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
       signal,
       credentials: 'same-origin',
       redirect: 'error',
     });
+    this.sentWith.set(response, token);
+    return response;
   }
 
   private current(generation: number, signal: AbortSignal): void {
@@ -77,18 +99,21 @@ export class BackendService {
   }
 
   private async remove(id: string): Promise<void> {
-    const response = await fetch(`${BACKEND_BASE}/sessions/${encodeURIComponent(id)}`, {
+    const token = this.auth.authorizationHeader();
+    const response = await fetch(`${this.auth.baseUrl}/sessions/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      headers: this.headers(),
       keepalive: true,
       credentials: 'same-origin',
       redirect: 'error',
     });
-    if (!response.ok && response.status !== 404) throw new BackendHttpError(response.status);
+    this.sentWith.set(response, token);
+    if (!response.ok && response.status !== 404) throw this.rejected(response);
   }
 
   private async create(generation: number, signal: AbortSignal): Promise<string> {
     const response = await this.request('/sessions', {}, signal);
-    if (!response.ok) throw new BackendHttpError(response.status);
+    if (!response.ok) throw this.rejected(response);
     const { sessionId } = await response.json();
     if (typeof sessionId !== 'string' || !sessionId)
       throw new Error('Invalid backend session response.');
@@ -131,7 +156,7 @@ export class BackendService {
       this.sessionId = null;
       return this.index(chunks, generation, signal, false);
     }
-    if (!response.ok) throw new BackendHttpError(response.status);
+    if (!response.ok) throw this.rejected(response);
   }
 
   /**
@@ -148,7 +173,7 @@ export class BackendService {
     try {
       const response = await this.post(id, chunks, signal);
       this.current(generation, signal);
-      if (!response.ok) throw new BackendHttpError(response.status);
+      if (!response.ok) throw this.rejected(response);
     } catch (error) {
       void this.remove(id).catch(() => undefined);
       if ((error as Error).name === 'AbortError') throw error;
@@ -217,7 +242,7 @@ export class BackendService {
             }
           }
           this.current(generation, controller.signal);
-          if (!response.ok) throw new BackendHttpError(response.status);
+          if (!response.ok) throw this.rejected(response);
           if (!response.body) throw new Error('Backend stream has no body.');
           reader = response.body.getReader();
           const decoder = new TextDecoder();

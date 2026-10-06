@@ -1,5 +1,9 @@
-// Local dev proxy: the browser calls same-origin /api, and this Node process forwards to the
-// loopback backend with the developer token. The token never reaches the browser or the bundle.
+// Local dev proxy: the browser calls same-origin /api and this Node process forwards it to the
+// loopback backend, stripping the prefix. The browser's own Authorization header -- the token it
+// got from signing in -- is what authenticates the request, so local development exercises the
+// real sign-in. A developer token may be supplied for requests that carry no header of their own
+// (scripts, curl); it is never used to overwrite one, which would let an unauthenticated browser
+// through as the developer and make the sign-in untestable locally.
 
 export const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8000';
 
@@ -27,14 +31,14 @@ export function backendTarget(env) {
   return url.origin;
 }
 
-/** Validates DOCLOCAL_BACKEND_TOKEN. Error messages never include the value. */
+/**
+ * Validates DOCLOCAL_BACKEND_TOKEN when one is set, and returns null when it is not.
+ * Optional since the sign-in arrived: the browser brings its own token. Error messages
+ * never include the value.
+ */
 export function backendToken(env) {
   const token = (env.DOCLOCAL_BACKEND_TOKEN ?? '').trim();
-  if (!token)
-    fail(
-      'DOCLOCAL_BACKEND_TOKEN is not set. Export the raw developer token from ' +
-        'scripts/new_dev_token.py before running npm start (see README).',
-    );
+  if (!token) return null;
   if (token.length > MAX_TOKEN_LENGTH || !/^[\x21-\x7e]+$/.test(token))
     fail('DOCLOCAL_BACKEND_TOKEN must be a single printable token without spaces or "Bearer".');
   if (/^[A-Za-z0-9._@-]+:[0-9a-f]{64}$/.test(token))
@@ -54,9 +58,13 @@ export function stripApiPrefix(path) {
 /** Proxy hooks, exported separately so they can be tested without a dev server. */
 export function attachProxyHandlers(proxy, token) {
   proxy.on('proxyReq', (proxyReq) => {
-    // The browser holds no credentials for the backend; never forward any it sends.
+    // Cookies are never part of this API; the bearer token is the only credential.
     proxyReq.removeHeader('cookie');
-    proxyReq.setHeader('authorization', `Bearer ${token}`);
+    // A request that signed in carries its own token: leave it alone. Only a request with
+    // none falls back to the developer token, and only when one was configured.
+    if (!proxyReq.getHeader('authorization') && token) {
+      proxyReq.setHeader('authorization', `Bearer ${token}`);
+    }
   });
   proxy.on('proxyRes', (proxyRes) => {
     // The backend never redirects. Refuse to relay one rather than point the browser elsewhere.

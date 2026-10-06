@@ -1,7 +1,19 @@
 import { lastValueFrom } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
+import { AuthService } from '@doclocal/data-auth';
 import { BackendService } from './backend.service';
 import type { BackendChatEvent } from './backend.service';
+
+/** Stands in for a signed-in AuthService: the backend only needs the base, the header
+ * and somewhere to report a 401. */
+class AuthStub {
+  baseUrl = '/api';
+  token: string | null = 'Bearer signed-in-token';
+  handleUnauthorized = jest.fn<void, [string | null]>();
+  authorizationHeader(): string | null {
+    return this.token;
+  }
+}
 
 function sseBody(...frames: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -17,11 +29,13 @@ function sseBody(...frames: string[]): ReadableStream<Uint8Array> {
 describe('BackendService', () => {
   let service: BackendService;
   let fetchMock: jest.Mock;
+  let auth: AuthStub;
 
   beforeEach(() => {
     fetchMock = jest.fn();
     (globalThis as unknown as Record<string, unknown>)['fetch'] = fetchMock;
-    TestBed.configureTestingModule({});
+    auth = new AuthStub();
+    TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: auth }] });
     service = TestBed.inject(BackendService);
   });
 
@@ -287,7 +301,7 @@ describe('BackendService', () => {
   });
 
   describe('deleteSession$', () => {
-    it('sends DELETE /api/sessions/{id} without browser credentials', (done) => {
+    it('sends DELETE /api/sessions/{id} with the sign-in token', (done) => {
       fetchMock
         .mockResolvedValueOnce({
           ok: true,
@@ -309,7 +323,9 @@ describe('BackendService', () => {
               expect(delCall[0]).toBe('/api/sessions/sess-del');
               expect(delCall[1].method).toBe('DELETE');
               const headers = delCall[1].headers as Record<string, string>;
-              expect(headers).toBeUndefined();
+              expect(headers['Authorization']).toBe('Bearer signed-in-token');
+              // The backend is reached with the bearer token only, never a browser cookie.
+              expect(headers['Cookie']).toBeUndefined();
               done();
             },
             error: done,
@@ -395,7 +411,7 @@ describe('BackendService', () => {
         expect((service as unknown as Record<string, unknown>)[name]).toBeUndefined();
     });
 
-    it('sends every request to /api without Authorization and refuses redirects', async () => {
+    it('sends every request to the sign-in base with this sign-in bearer token', async () => {
       await ready();
       fetchMock.mockResolvedValueOnce({ ok: true, body: sseBody('event: done\ndata: {}\n\n') });
       await lastValueFrom(service.chat$('q'));
@@ -404,19 +420,38 @@ describe('BackendService', () => {
       expect(fetchMock.mock.calls).toHaveLength(4);
       for (const [url, init] of fetchMock.mock.calls as [string, RequestInit][]) {
         expect(url.startsWith('/api/')).toBe(true);
-        expect(JSON.stringify(init.headers ?? {})).not.toMatch(/authorization/i);
+        expect((init.headers as Record<string, string>)['Authorization']).toBe(
+          'Bearer signed-in-token',
+        );
         expect(init.redirect).toBe('error');
         expect(init.credentials).toBe('same-origin');
       }
     });
 
-    it('explains a 401 in terms of the proxy token', async () => {
+    it('sends no Authorization header at all when signed out', async () => {
+      auth.token = null;
       fetchMock.mockResolvedValueOnce({ ok: false, status: 401 });
-      await expect(lastValueFrom(service.indexDocument$([]))).rejects.toThrow(
-        /DOCLOCAL_BACKEND_TOKEN/,
-      );
+      await expect(lastValueFrom(service.indexDocument$([]))).rejects.toThrow(/401/);
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.stringify(init.headers ?? {})).not.toMatch(/authorization/i);
+    });
+
+    it('ends the sign-in on a 401 and reports it as an expired session', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 401 });
+      await expect(lastValueFrom(service.indexDocument$([]))).rejects.toThrow(/Sign in again/);
+      expect(auth.handleUnauthorized).toHaveBeenCalledWith('Bearer signed-in-token');
       expect(service.sessionStatus()).toBe('error');
       expect(service.sessionError()).toMatch(/401/);
+    });
+
+    it('a 401 ends the sign-in that sent it, not one that began while it was in flight', async () => {
+      // The reply to an old request must not sign out whoever signed in meanwhile.
+      fetchMock.mockImplementationOnce(async () => {
+        auth.token = 'Bearer a-newer-sign-in';
+        return { ok: false, status: 401 };
+      });
+      await expect(lastValueFrom(service.indexDocument$([]))).rejects.toThrow(/401/);
+      expect(auth.handleUnauthorized).toHaveBeenCalledWith('Bearer signed-in-token');
     });
   });
 
