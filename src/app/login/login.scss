@@ -1,3 +1,13 @@
+// The shell is a flex column and this component sits between it and the layout below,
+// so the host has to be the flex item that grows -- otherwise `flex: 1` inside resolves
+// against a host that never stretched, and the view collapses to its content height.
+// `min-height: 0` lets the scrolling children shrink instead of overflowing the column.
+:host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .login {
   flex: 1;
   display: flex;

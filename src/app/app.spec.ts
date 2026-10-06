@@ -89,6 +89,29 @@ describe('App (sign-in gate)', () => {
     expect(fixture.nativeElement.querySelector('app-login')).toBeTruthy();
   });
 
+  it('lets the signed-in view fill the shell instead of collapsing to its content', () => {
+    // The shell is a flex column; App renders Workspace/Login through an extra element,
+    // so each must be a growing flex item or `flex: 1` inside it resolves against a host
+    // that never stretched and the whole view collapses to content height.
+    status.set('signed-in');
+    user.set({ id: 'sign-in-1', username: 'alice' });
+    const fixture = render();
+
+    const host = fixture.nativeElement.querySelector('app-workspace') as HTMLElement;
+    const style = getComputedStyle(host);
+
+    expect(style.display).toBe('flex');
+    expect(style.flexGrow).toBe('1');
+  });
+
+  it('lets the signed-out view fill the shell too, so the form stays centred', () => {
+    const host = render().nativeElement.querySelector('app-login') as HTMLElement;
+    const style = getComputedStyle(host);
+
+    expect(style.display).toBe('flex');
+    expect(style.flexGrow).toBe('1');
+  });
+
   it('revokes the session on the backend when signing out', () => {
     status.set('signed-in');
     user.set({ id: 'sign-in-1', username: 'alice' });
