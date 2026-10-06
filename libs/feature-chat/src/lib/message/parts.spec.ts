@@ -51,4 +51,28 @@ describe('parseParts', () => {
     it('keeps an out-of-range marker as a chip without a citation', () => {
         expect(parseParts('Alpha [9]', citations)[1]).toEqual({ type: 'cite', value: '[9]', citation: undefined });
     });
+
+    it('unwraps latex the model copied out of a maths-heavy document', () => {
+        expect(parseParts('Formally, for \\(h\\) heads [1].', citations)).toEqual([
+            { type: 'text', value: 'Formally, for h heads ' },
+            { type: 'cite', value: '[1]', citation: citations[0] },
+            { type: 'text', value: '.' },
+        ]);
+    });
+
+    it('does not turn an index inside a formula into a citation chip', () => {
+        expect(parseParts('With \\(a_{[1]}\\) terms [2].', citations)).toEqual([
+            { type: 'text', value: 'With a_1 terms ' },
+            { type: 'cite', value: '[2]', citation: citations[1] },
+            { type: 'text', value: '.' },
+        ]);
+    });
+
+    it('unwraps a formula without disturbing the citation that follows it', () => {
+        expect(parseParts('Each head uses \\(d_k=d_v=d_{\\text{model}}/h\\) [2].', citations)).toEqual([
+            { type: 'text', value: 'Each head uses d_k=d_v=d_model/h ' },
+            { type: 'cite', value: '[2]', citation: citations[1] },
+            { type: 'text', value: '.' },
+        ]);
+    });
 });
