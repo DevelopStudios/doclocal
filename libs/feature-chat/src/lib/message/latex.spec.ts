@@ -39,6 +39,24 @@ describe('stripMath', () => {
         expect(stripMath('for \\')).toBe('for');
     });
 
+    it('flattens sub- and superscripts that arrive with no delimiters around them', () => {
+        expect(stripMath('a projection (∑_{i=1}^{h} head_i ) W_O [3]')).toBe(
+            'a projection (∑_i=1^h head_i ) W_O [3]',
+        );
+        expect(stripMath('the matrix W^{O}')).toBe('the matrix W^O');
+    });
+
+    it('flattens a nested subscript', () => {
+        expect(stripMath('d_{model_{out}}')).toBe('d_model_out');
+    });
+
+    it('leaves braces that are not a sub- or superscript alone', () => {
+        expect(stripMath('Use {a, b} for the set.')).toBe('Use {a, b} for the set.');
+        expect(stripMath('Call fn({ retries: 2 }) to configure it.')).toBe(
+            'Call fn({ retries: 2 }) to configure it.',
+        );
+    });
+
     it('leaves ordinary prose untouched', () => {
         const prose = 'The Transformer reaches 41.0 BLEU at 1/4 the training cost [3].';
         expect(stripMath(prose)).toBe(prose);

@@ -22,6 +22,13 @@ const ELLIPSIS = /\\(?:dots|ldots|cdots|hdots)\b/g;
 /** A delimiter still mid-stream (`\`, `\(`, `\(d_k`) — hidden until it closes, so it can't flash. */
 const PARTIAL = /\s*\\(?:$|[([][^]*$)/;
 
+/**
+ * `_{i=1}` → `_i=1`. Models also emit sub- and superscripts bare, with no `\(…\)` around them —
+ * `(∑_{i=1}^{h} head_i)` came back from the Attention paper that way. Only `_{` and `^{` are
+ * touched: a brace on its own is left alone, since set notation and code in an answer use it.
+ */
+const SCRIPT = /([_^])\{([^{}]*)\}/g;
+
 function unwrap(body: string): string {
     let out = body;
     // Nested wrappers resolve from the inside out: `\mathbf{\text{x}}` needs two passes.
@@ -41,12 +48,25 @@ function unwrap(body: string): string {
         .trim();
 }
 
+/** `_{a_{b}}` nests, so flatten from the inside out until nothing changes. */
+function flattenScripts(text: string): string {
+    let out = text;
+    for (let depth = 0; depth < 4; depth++) {
+        const next = out.replace(SCRIPT, '$1$2');
+        if (next === out) break;
+        out = next;
+    }
+    return out;
+}
+
 export function stripMath(content: string): string {
     const unwrapped = content.replace(
         /\\\(([^]*?)\\\)|\\\[([^]*?)\\\]/g,
         (_match, inline: string | undefined, display: string | undefined) =>
             unwrap(inline ?? display ?? ''),
     );
+    // Across the whole answer, not just the formulas: models emit scripts bare just as often.
+    const flattened = flattenScripts(unwrapped);
     // Only after the closed pairs are gone, so a `\(` inside a finished formula isn't read as partial.
-    return unwrapped.replace(PARTIAL, '');
+    return flattened.replace(PARTIAL, '');
 }
