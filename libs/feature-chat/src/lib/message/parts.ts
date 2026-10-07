@@ -1,4 +1,5 @@
 import type { Citation } from '../model';
+import { stripMath } from './latex';
 
 export interface TextPart { type: 'text'; value: string; }
 export interface CitePart { type: 'cite'; value: string; citation: Citation | undefined; }
@@ -9,9 +10,12 @@ export type Part = TextPart | CitePart;
  * dropped: a citation that opens the answer supports no claim. A marker still being streamed in
  * (a trailing `[`, `[1` or `[n`) is hidden until it completes, and a one-letter placeholder like
  * `[n]`, copied from the prompt's citation rule, is dropped with the space before it.
+ *
+ * LaTeX the model copied out of the document is unwrapped first (see `stripMath`), so a formula
+ * reads as prose instead of as markup.
  */
 export function parseParts(content: string, citations: Citation[]): Part[] {
-  content = content.replace(/\s*\[[a-zA-Z]\]/g, '').replace(/\[(?:\d*|[a-zA-Z])$/, '');
+  content = stripMath(content).replace(/\s*\[[a-zA-Z]\]/g, '').replace(/\[(?:\d*|[a-zA-Z])$/, '');
   const result: Part[] = [];
   let last = 0;
   let hasText = false;
