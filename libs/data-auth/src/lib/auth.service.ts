@@ -33,7 +33,9 @@ export const AUTH_REVALIDATE_INTERVAL_MS = new InjectionToken<number>(
   },
 );
 
-export type AuthStatus = 'signed-out' | 'signing-in' | 'signed-in';
+/** `demo` is an anonymous visitor holding a short-lived demo token: a real bearer
+ * identity to the backend, but not a sign-in and not an account. */
+export type AuthStatus = 'signed-out' | 'signing-in' | 'signed-in' | 'demo';
 
 export interface AuthUser {
   /** This sign-in's own identity; one person may be signed in from several browsers. */
@@ -50,6 +52,13 @@ export const SIGN_IN_MESSAGES = {
   unavailable: 'Sign-in is not available right now. Try again later.',
   unreachable: "Couldn't reach the sign-in service. Check your connection and try again.",
   expired: 'Your session has ended. Sign in again.',
+} as const;
+
+export const DEMO_MESSAGES = {
+  unavailable: 'The demo is not available right now. Try again later.',
+  busy: 'The demo is busy right now. Try again in a minute.',
+  unreachable: "Couldn't reach the demo. Check your connection and try again.",
+  ended: 'The demo session ended. Ask again to start a new one.',
 } as const;
 
 /**
@@ -78,6 +87,8 @@ export class AuthService implements OnDestroy {
    * so every request reaches the same origin the sign-in was checked against. */
   readonly baseUrl: string;
   private token: string | null = null;
+  /** The demo's pinned document session, handed over with the demo token. */
+  private demoSessionId: string | null = null;
   private expiryTimer?: ReturnType<typeof setTimeout>;
   private revalidateTimer?: ReturnType<typeof setInterval>;
   private readonly onVisible = () => {
@@ -129,11 +140,45 @@ export class AuthService implements OnDestroy {
     return false;
   }
 
+  /**
+   * Starts (or reuses) a demo session, returning its pinned document session id.
+   *
+   * Called on the visitor's first question, not on page load. A demo token is a
+   * bearer identity like any other, so everything downstream — the Authorization
+   * header, revalidation, the expiry timer — works unchanged.
+   */
+  async startDemo(): Promise<string | null> {
+    if (this.status() === 'demo' && this.demoSessionId) return this.demoSessionId;
+    if (this.status() === 'signed-in' || this.configError) return null;
+    this.error.set(null);
+    let message: string = DEMO_MESSAGES.unreachable;
+    try {
+      const response = await this.request('POST', '/demo/session', {});
+      if (response.ok) {
+        const session = parseDemo(await response.json());
+        if (session) {
+          this.demoSessionId = session.sessionId;
+          this.establish(session.token, null, session.expiresIn, 'demo');
+          return session.sessionId;
+        }
+      } else {
+        message = response.status === 429 ? DEMO_MESSAGES.busy : DEMO_MESSAGES.unavailable;
+      }
+    } catch {
+      // Network failure or timeout: the default message applies.
+    }
+    this.clear(message);
+    return null;
+  }
+
   /** Signs out here at once, then asks the backend to revoke the token. */
   async logout(): Promise<void> {
     const token = this.token;
+    const wasDemo = this.status() === 'demo';
     this.clear(null);
-    if (!token) return;
+    // A demo token has nothing to revoke: it is not a login session, so /auth/logout
+    // would be a no-op round trip.
+    if (!token || wasDemo) return;
     try {
       await this.request('POST', '/auth/logout', { token });
     } catch {
@@ -163,10 +208,15 @@ export class AuthService implements OnDestroy {
     if (token && token === this.token) this.clear(SIGN_IN_MESSAGES.expired);
   }
 
-  private establish(token: string, user: AuthUser, expiresInS: number): void {
+  private establish(
+    token: string,
+    user: AuthUser | null,
+    expiresInS: number,
+    status: 'signed-in' | 'demo' = 'signed-in',
+  ): void {
     this.token = token;
     this.user.set(user);
-    this.status.set('signed-in');
+    this.status.set(status);
     this.error.set(null);
     this.stopTimers();
     // Outside Angular: pending timers would otherwise keep the app from ever being stable.
@@ -184,6 +234,7 @@ export class AuthService implements OnDestroy {
 
   private clear(message: string | null): void {
     this.token = null;
+    this.demoSessionId = null;
     this.stopTimers();
     this.user.set(null);
     this.status.set('signed-out');
@@ -236,6 +287,15 @@ function parseLogin(body: unknown): { token: string; user: AuthUser; expiresIn: 
   const { id, username } = user as Record<string, unknown>;
   if (typeof id !== 'string' || typeof username !== 'string') return null;
   return { token, expiresIn, user: { id, username } };
+}
+
+function parseDemo(body: unknown): { token: string; sessionId: string; expiresIn: number } | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { token, sessionId, expiresIn } = body as Record<string, unknown>;
+  if (typeof token !== 'string' || token === '') return null;
+  if (typeof sessionId !== 'string' || sessionId === '') return null;
+  if (typeof expiresIn !== 'number' || !Number.isFinite(expiresIn) || expiresIn <= 0) return null;
+  return { token, sessionId, expiresIn };
 }
 
 function failureMessage(response: Response): string {

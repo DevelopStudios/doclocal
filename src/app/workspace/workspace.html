@@ -6,7 +6,11 @@
         <div class="doc-meta">
           {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
         </div>
-        <button class="replace-btn" (click)="replaceDocument()">Replace document</button>
+        @if (demo()) {
+          <div class="doc-meta">Sample document</div>
+        } @else {
+          <button class="replace-btn" (click)="replaceDocument()">Replace document</button>
+        }
       </div>
     } @else {
       <div class="doc-empty">No document loaded</div>
@@ -17,7 +21,9 @@
     <chat-panel
       [docLoaded]="!!doc()"
       [documentVersion]="documentVersion()"
+      [demo]="demo()"
       (citationsChanged)="onCitationsChanged($event)"
+      (answered)="answered.set(true)"
     />
   </section>
 
@@ -38,6 +44,15 @@
           />
         }
       </div>
+    } @else if (demo()) {
+      <div class="upload-wrapper">
+        @if (parsing()) {
+          <p class="status-text">Loading the sample document…</p>
+        }
+        @if (parseError()) {
+          <p class="error-text">{{ parseError() }}</p>
+        }
+      </div>
     } @else {
       <div class="upload-wrapper">
         <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
@@ -55,3 +70,7 @@
     }
   </section>
 </main>
+
+@if (demo() && answered()) {
+  <app-request-access />
+}

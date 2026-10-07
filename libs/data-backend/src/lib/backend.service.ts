@@ -29,10 +29,58 @@ function httpHint(status: number): string {
   return 'Try again or check the backend configuration.';
 }
 
+/** The backend's daily answer allowance is spent. A 429 with no code is not this. */
+export const BUDGET_EXHAUSTED = 'nim_budget_exhausted';
+
+/**
+ * How long until capacity returns, in words.
+ *
+ * The budget window is a day, so `Retry-After` is hours. Rendering it as the seconds
+ * a per-minute 429 would deserve ("try again in 14400 seconds") is accurate in the
+ * protocol and useless on screen.
+ */
+export function resetPhrase(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return 'later today';
+  if (seconds < 90) return 'in under a minute';
+  if (seconds < 3600) return `in about ${Math.round(seconds / 60)} minutes`;
+  const hours = Math.round(seconds / 3600);
+  return `in about ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+}
+
+function message(status: number, code: string | null, retryAfter: number | null): string {
+  if (code === BUDGET_EXHAUSTED)
+    return `Today's usage limit has been reached. New answers resume ${resetPhrase(retryAfter)}.`;
+  return `Backend request failed (${status}). ${httpHint(status)}`;
+}
+
 export class BackendHttpError extends Error {
-  constructor(readonly status: number) {
-    super(`Backend request failed (${status}). ${httpHint(status)}`);
+  constructor(
+    readonly status: number,
+    /** The backend's machine-readable reason, when it sent one. Branch on this. */
+    readonly code: string | null = null,
+    readonly retryAfterSeconds: number | null = null,
+  ) {
+    super(message(status, code, retryAfterSeconds));
   }
+}
+
+/** The `code` a refusal body carries, or null. Never throws: a body may be empty,
+ * truncated or not JSON at all, and the status still has to get through. */
+async function errorCode(response: Response): Promise<string | null> {
+  try {
+    const body = await response.clone?.().json();
+    const code = (body as Record<string, unknown>)?.['code'];
+    return typeof code === 'string' && code ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Optional by definition, so reading it must never turn a clean HTTP error into a
+ * TypeError: the status is what the caller actually needs. */
+function retryAfter(response: Response): number | null {
+  const seconds = Number(response.headers?.get('Retry-After'));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,12 +94,37 @@ export class BackendService {
   private controllers = new Set<AbortController>();
   readonly sessionStatus = signal<'none' | 'creating' | 'ready' | 'indexing' | 'error'>('none');
   readonly sessionError = signal<string | null>(null);
+  /**
+   * Seconds until the daily answer allowance returns, or null while there is capacity.
+   * Set from any refusal carrying `nim_budget_exhausted`, so one 429 is enough to put
+   * the banner up and keep the composer disabled until the page is reloaded.
+   */
+  readonly capacitySpentFor = signal<number | null>(null);
+  /** The demo's document is pinned server-side: this client may ask, not index. */
+  private demoMode = false;
 
   clearSession(): void {
     this.invalidate();
     this.sessionId = null;
     this.cachedChunks = [];
+    this.demoMode = false;
     this.sessionStatus.set('none');
+    this.sessionError.set(null);
+  }
+
+  /**
+   * Point this client at the demo's pinned document.
+   *
+   * The chunks come from the browser's own parse of the sample PDF, exactly as for an
+   * uploaded document, but nothing is sent: the backend indexed the same text at boot.
+   * The session id arrives with the demo token, on the first question.
+   */
+  useDemoDocument(chunks: PdfChunk[]): void {
+    this.invalidate();
+    this.sessionId = null;
+    this.demoMode = true;
+    this.cachedChunks = chunks.map((c) => ({ ...c }));
+    this.sessionStatus.set('ready');
     this.sessionError.set(null);
   }
 
@@ -74,9 +147,11 @@ export class BackendService {
    * with, not the current one: a sign-in that happened while the request was in flight
    * must not be cancelled by its reply.
    */
-  private rejected(response: Response): BackendHttpError {
+  private async rejected(response: Response): Promise<BackendHttpError> {
     if (response.status === 401) this.auth.handleUnauthorized(this.sentWith.get(response) ?? null);
-    return new BackendHttpError(response.status);
+    const code = await errorCode(response);
+    if (code === BUDGET_EXHAUSTED) this.capacitySpentFor.set(retryAfter(response));
+    return new BackendHttpError(response.status, code, retryAfter(response));
   }
 
   private async request(path: string, body: unknown, signal: AbortSignal): Promise<Response> {
@@ -108,12 +183,12 @@ export class BackendService {
       redirect: 'error',
     });
     this.sentWith.set(response, token);
-    if (!response.ok && response.status !== 404) throw this.rejected(response);
+    if (!response.ok && response.status !== 404) throw await this.rejected(response);
   }
 
   private async create(generation: number, signal: AbortSignal): Promise<string> {
     const response = await this.request('/sessions', {}, signal);
-    if (!response.ok) throw this.rejected(response);
+    if (!response.ok) throw await this.rejected(response);
     const { sessionId } = await response.json();
     if (typeof sessionId !== 'string' || !sessionId)
       throw new Error('Invalid backend session response.');
@@ -156,7 +231,7 @@ export class BackendService {
       this.sessionId = null;
       return this.index(chunks, generation, signal, false);
     }
-    if (!response.ok) throw this.rejected(response);
+    if (!response.ok) throw await this.rejected(response);
   }
 
   /**
@@ -173,7 +248,7 @@ export class BackendService {
     try {
       const response = await this.post(id, chunks, signal);
       this.current(generation, signal);
-      if (!response.ok) throw this.rejected(response);
+      if (!response.ok) throw await this.rejected(response);
     } catch (error) {
       void this.remove(id).catch(() => undefined);
       if ((error as Error).name === 'AbortError') throw error;
@@ -182,6 +257,21 @@ export class BackendService {
           'Ask again to retry, or replace the document.',
       );
     }
+    this.sessionId = id;
+    return id;
+  }
+
+  /**
+   * The pinned demo session, minting a demo token if there isn't one yet.
+   *
+   * Lazily, on the first question: minting on page load would burn a session and a
+   * slot for every crawler, link preview and idle tab that ever touches the link, and
+   * `POST /demo/session` is the one unauthenticated endpoint worth keeping cheap.
+   */
+  private async demoSession(generation: number, signal: AbortSignal): Promise<string> {
+    const id = await this.auth.startDemo();
+    this.current(generation, signal);
+    if (!id) throw new Error(this.auth.error() ?? 'The demo is not available right now.');
     this.sessionId = id;
     return id;
   }
@@ -229,20 +319,30 @@ export class BackendService {
           this.current(generation, controller.signal);
           // A null session means an earlier recovery was cancelled or failed; retry it once.
           const recovered = !this.sessionId;
-          let id = this.sessionId ?? (await this.recover(chunks, generation, controller.signal));
+          let id =
+            this.sessionId ??
+            (this.demoMode
+              ? await this.demoSession(generation, controller.signal)
+              : await this.recover(chunks, generation, controller.signal));
           const ask = () => this.request('/chat', { session_id: id, question }, controller.signal);
           let response = await ask();
           this.current(generation, controller.signal);
           if (response.status === 404) {
             // Detach only the expired session; a newer one must survive.
             if (this.sessionId === id) this.sessionId = null;
+            // Recovery re-indexes, which the demo tier may not do. A 404 there means
+            // the backend restarted and lost the pinned sample; only a reload helps.
+            if (this.demoMode)
+              throw new Error(
+                'The demo document is no longer loaded. Reload the page to start again.',
+              );
             if (!recovered) {
               id = await this.recover(chunks, generation, controller.signal);
               response = await ask();
             }
           }
           this.current(generation, controller.signal);
-          if (!response.ok) throw this.rejected(response);
+          if (!response.ok) throw await this.rejected(response);
           if (!response.body) throw new Error('Backend stream has no body.');
           reader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -301,7 +401,9 @@ export class BackendService {
 
   deleteSession$(): Observable<void> {
     return new Observable((observer) => {
-      const id = this.sessionId;
+      // The demo's document is shared by every visitor and owned by nobody here, so
+      // there is nothing to clean up -- and the backend would refuse the DELETE anyway.
+      const id = this.demoMode ? null : this.sessionId;
       // Detach synchronously: an old DELETE must never clear a newer session.
       this.clearSession();
       if (!id) {

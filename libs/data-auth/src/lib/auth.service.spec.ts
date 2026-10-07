@@ -4,6 +4,7 @@ import {
   AUTH_FETCH,
   AUTH_REVALIDATE_INTERVAL_MS,
   AuthService,
+  DEMO_MESSAGES,
   SIGN_IN_MESSAGES,
 } from './auth.service';
 
@@ -219,5 +220,57 @@ describe('AuthService', () => {
     await jest.advanceTimersByTimeAsync(10 * 60_000);
 
     expect(calls).toHaveLength(2);
+  });
+});
+
+describe('AuthService demo sessions', () => {
+  const demoOk = (expiresIn = 900) =>
+    json(201, {
+      token: 'synthetic-demo-token',
+      tokenType: 'Bearer',
+      expiresAt: 'x',
+      expiresIn,
+      sessionId: 'pinned-sample-session',
+    });
+
+  it('mints a demo session and holds its pinned document session', async () => {
+    const { auth, calls } = setup([demoOk()]);
+
+    const sessionId = await auth.startDemo();
+
+    expect(sessionId).toBe('pinned-sample-session');
+    expect(auth.status()).toBe('demo');
+    expect(auth.authorizationHeader()).toBe('Bearer synthetic-demo-token');
+    expect(calls[0].url).toContain('/demo/session');
+    expect(calls[0].init.method).toBe('POST');
+    // Not a sign-in: nothing to show as "signed in as".
+    expect(auth.user()).toBeNull();
+  });
+
+  it('reuses the session it already has rather than minting another', async () => {
+    const { auth, calls } = setup([demoOk()]);
+
+    await auth.startDemo();
+    const again = await auth.startDemo();
+
+    expect(again).toBe('pinned-sample-session');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('reports a busy demo differently from a broken one', async () => {
+    const { auth } = setup([json(429, { code: 'demo_at_capacity' })]);
+
+    expect(await auth.startDemo()).toBeNull();
+    expect(auth.status()).toBe('signed-out');
+    expect(auth.error()).toBe(DEMO_MESSAGES.busy);
+  });
+
+  it('refuses a demo while someone is signed in', async () => {
+    const { auth, calls } = setup([loginOk()]);
+    await auth.login('team', PASSWORD);
+
+    expect(await auth.startDemo()).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect(auth.status()).toBe('signed-in');
   });
 });

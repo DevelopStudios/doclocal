@@ -1,7 +1,7 @@
 import { lastValueFrom } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '@doclocal/data-auth';
-import { BackendService } from './backend.service';
+import { BackendHttpError, BUDGET_EXHAUSTED, BackendService, resetPhrase } from './backend.service';
 import type { BackendChatEvent } from './backend.service';
 
 /** Stands in for a signed-in AuthService: the backend only needs the base, the header
@@ -681,5 +681,88 @@ describe('BackendService', () => {
     await new Promise((r) => setTimeout(r, 0));
     const deletion = fetchMock.mock.calls.find((c) => c[1]?.method === 'DELETE');
     expect(deletion?.[0]).toBe('/api/sessions/orphan');
+  });
+});
+
+describe('coded refusals', () => {
+  /** A refusal body, as the backend's CodedHTTPException handler sends it. */
+  function refusal(status: number, body: unknown, headers: Record<string, string> = {}) {
+    return {
+      ok: false,
+      status,
+      headers: { get: (name: string) => headers[name] ?? null },
+      clone: () => ({ json: async () => body }),
+    } as unknown as Response;
+  }
+
+  let service: BackendService;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn();
+    (globalThis as unknown as Record<string, unknown>)['fetch'] = fetchMock;
+    TestBed.configureTestingModule({
+      providers: [{ provide: AuthService, useValue: new AuthStub() }],
+    });
+    service = TestBed.inject(BackendService);
+  });
+
+  it('reads the code and the reset time from a capacity refusal', async () => {
+    fetchMock.mockResolvedValue(
+      refusal(
+        429,
+        { detail: "Today's NIM usage limit has been reached", code: BUDGET_EXHAUSTED },
+        { 'Retry-After': '14400' },
+      ),
+    );
+
+    const error = await lastValueFrom(service.chat$('q')).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(BackendHttpError);
+    expect((error as BackendHttpError).code).toBe(BUDGET_EXHAUSTED);
+    // Hours, not "please wait": a day-length window needs a time, not a nudge.
+    expect((error as BackendHttpError).message).toContain('in about 4 hours');
+    expect(service.capacitySpentFor()).toBe(14400);
+  });
+
+  it('leaves a bare 429 as the old rate-limit hint', async () => {
+    fetchMock.mockResolvedValue(refusal(429, { detail: 'Rate limit exceeded' }));
+
+    const error = await lastValueFrom(service.chat$('q')).catch((e: Error) => e);
+
+    expect((error as BackendHttpError).code).toBeNull();
+    expect((error as BackendHttpError).message).toContain('Please wait before trying again.');
+    // Only a coded refusal raises the capacity banner.
+    expect(service.capacitySpentFor()).toBeNull();
+  });
+
+  it('survives a refusal body that is not JSON', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: { get: () => null },
+      clone: () => ({
+        json: async () => {
+          throw new Error('not json');
+        },
+      }),
+    } as unknown as Response);
+
+    const error = await lastValueFrom(service.chat$('q')).catch((e: Error) => e);
+
+    expect((error as BackendHttpError).status).toBe(503);
+    expect((error as BackendHttpError).code).toBeNull();
+  });
+});
+
+describe('resetPhrase', () => {
+  it('reads as a time, scaled to how long the wait actually is', () => {
+    expect(resetPhrase(14400)).toBe('in about 4 hours');
+    expect(resetPhrase(3600)).toBe('in about 1 hour');
+    expect(resetPhrase(600)).toBe('in about 10 minutes');
+    expect(resetPhrase(30)).toBe('in under a minute');
+    // A missing or nonsensical Retry-After must still produce a sentence.
+    expect(resetPhrase(null)).toBe('later today');
+    expect(resetPhrase(NaN)).toBe('later today');
   });
 });

@@ -48,5 +48,12 @@
     >
       {{ auth.status() === 'signing-in' ? 'Signing in…' : 'Sign in' }}
     </button>
+
+    <p class="exits">
+      No account?
+      <button class="link-btn" type="button" (click)="tryDemo.emit()">Try the demo</button>
+    </p>
   </form>
+
+  <app-request-access variant="inline" />
 </main>

@@ -1,0 +1,184 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 1400 >>
+stream
+BT
+/F1 11 Tf
+15.5 TL
+1 0 0 1 72 720 Tm
+(Aeration Basin Retrofit at Greenfield Water Reclamation Plant Design Report, Revision C) Tj
+T*
+() Tj
+T*
+(The Greenfield Water Reclamation Plant treats wastewater for a service area of 48,000) Tj
+T*
+(residents. Its two aeration basins were commissioned in 1987 and have operated) Tj
+T*
+(continuously since. Dissolved oxygen in Basin 2 has fallen below the permitted floor of) Tj
+T*
+(2 milligrams per litre on 31 days in the past year, each time during the summer peak.) Tj
+T*
+(The plant operator recorded the longest single excursion as 9 hours.) Tj
+T*
+() Tj
+T*
+(The cause is not the blowers, which were replaced in 2019 and still meet their rated) Tj
+T*
+(output. It is the diffuser grid on the basin floor. The original coarse-bubble diffusers) Tj
+T*
+(transfer oxygen at roughly 1.2 kilograms per kilowatt-hour under clean water conditions,) Tj
+T*
+(and the membranes have fouled unevenly, so a third of the grid now delivers most of the) Tj
+T*
+(air. Short-circuiting carries that air to the surface before it dissolves.) Tj
+T*
+() Tj
+T*
+(Left alone, the plant will breach its discharge permit during the next heat wave. The) Tj
+T*
+(regional authority has issued a notice of concern, and a second excursion in the same) Tj
+T*
+(calendar year would trigger a formal compliance review. This report sets out the) Tj
+T*
+(retrofit options and recommends one.) Tj
+T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 1355 >>
+stream
+BT
+/F1 11 Tf
+15.5 TL
+1 0 0 1 72 720 Tm
+(Constraints) Tj
+T*
+() Tj
+T*
+(Four constraints shaped every option below, and they are listed in the order that ruled) Tj
+T*
+(candidates out.) Tj
+T*
+() Tj
+T*
+(The plant cannot be taken offline. There is no third basin and no equalisation storage,) Tj
+T*
+(so one basin must remain in service at all times. Any retrofit has to be installed one) Tj
+T*
+(basin at a time, with the working basin carrying the full load for the duration. The) Tj
+T*
+(plant's hydraulic model shows a single basin can carry peak flow for no more than 14) Tj
+T*
+(consecutive days before solids carry over into the clarifiers.) Tj
+T*
+() Tj
+T*
+(The budget is 1.4 million dollars, approved in the current capital cycle. Funds not) Tj
+T*
+(committed by the end of the fiscal year return to the general reserve and would have to) Tj
+T*
+(be requested again.) Tj
+T*
+() Tj
+T*
+(The existing basin floor cannot carry additional dead load. A 1994 structural assessment) Tj
+T*
+(limits any new fixed equipment on the floor slab to 40 kilograms per square metre.) Tj
+T*
+() Tj
+T*
+(Finally, the retrofit must not increase the plant's electrical demand. The site's) Tj
+T*
+(service connection is already at 92 percent of its rated capacity, and upgrading it) Tj
+T*
+(would require a new transformer and a separate utility agreement that takes 18 months.) Tj
+T*
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Length 1459 >>
+stream
+BT
+/F1 11 Tf
+15.5 TL
+1 0 0 1 72 720 Tm
+(Options considered) Tj
+T*
+() Tj
+T*
+(Replacing the diffuser grid with fine-bubble membrane diffusers is the recommended) Tj
+T*
+(option. Fine-bubble units transfer oxygen at about 2.8 kilograms per kilowatt-hour, more) Tj
+T*
+(than double the present grid, which both restores the dissolved oxygen margin and lowers) Tj
+T*
+(blower demand. Installation fits the 14-day single-basin window, and the units mount on) Tj
+T*
+(the existing floor supports at 22 kilograms per square metre.) Tj
+T*
+() Tj
+T*
+(Mechanical surface aerators were ruled out on electrical demand. Four units sized for) Tj
+T*
+(Basin 2 would add 150 kilowatts, pushing the site past its service capacity and) Tj
+T*
+(triggering the transformer upgrade and its 18-month utility agreement.) Tj
+T*
+() Tj
+T*
+(A third aeration basin was ruled out on both cost and schedule. The lowest construction) Tj
+T*
+(estimate received was 3.2 million dollars, more than twice the approved budget, and the) Tj
+T*
+(earliest completion date was 26 months away. It remains the right answer if the service) Tj
+T*
+(area grows past 60,000 residents, and the site plan reserves land for it.) Tj
+T*
+() Tj
+T*
+(Chemical oxygen dosing was ruled out as an ongoing cost rather than a fix. It would meet) Tj
+T*
+(the permit floor during excursions but adds an estimated 180,000 dollars a year in) Tj
+T*
+(reagent, against a one-off retrofit, and does nothing about the fouled grid.) Tj
+T*
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000001676 00000 n 
+0000001802 00000 n 
+0000003209 00000 n 
+0000003335 00000 n 
+0000004846 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+4972
+%%EOF

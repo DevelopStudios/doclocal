@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { PdfService } from '@doclocal/data-pdf';
 import type { HighlightSpan, PdfDocument } from '@doclocal/data-pdf';
@@ -10,6 +10,12 @@ import {
   PdfViewerComponent,
   UploadDropzoneComponent,
 } from '@doclocal/feature-pdf-viewer';
+import { RequestAccessComponent } from '../request-access/request-access';
+
+/** The sample the public demo asks about. Served from this app's own origin, so the
+ * landing state costs no backend call; the backend indexed the same text at boot
+ * (doclocal-backend app/demo/sample_document.json). */
+const SAMPLE_PDF = 'aeration-retrofit-design-report.pdf';
 
 /**
  * Everything a signed-in person works with: the document, its backend session and the
@@ -20,13 +26,23 @@ import {
 @Component({
   selector: 'app-workspace',
   standalone: true,
-  imports: [ChatPanelComponent, PdfViewerComponent, HeatMinimapComponent, UploadDropzoneComponent],
+  imports: [
+    ChatPanelComponent,
+    PdfViewerComponent,
+    HeatMinimapComponent,
+    UploadDropzoneComponent,
+    RequestAccessComponent,
+  ],
   templateUrl: './workspace.html',
   styleUrl: './workspace.scss',
 })
 export class Workspace implements OnInit, OnDestroy {
   private pdf = inject(PdfService);
   backend = inject(BackendService);
+
+  /** Anonymous demo: one pinned document, no upload, replace or delete, and a route to
+   * asking for an account once the visitor has seen it work. */
+  demo = input<boolean>(false);
 
   doc = signal<PdfDocument | null>(null);
   highlights = signal<HighlightSpan[]>([]);
@@ -36,6 +52,9 @@ export class Workspace implements OnInit, OnDestroy {
   private indexing = new Subscription();
   parsing = signal(false);
   parseError = signal<string | null>(null);
+  /** Revealed only after the first answer, so a crawler would have to mint a session
+   * and drive the chat to ever reach the address. */
+  answered = signal(false);
 
   private beforeUnloadHandler = (): void => {
     this.backend.deleteSession$().subscribe({ error: () => undefined });
@@ -43,6 +62,29 @@ export class Workspace implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     window.addEventListener('beforeunload', this.beforeUnloadHandler);
+    if (this.demo()) void this.loadSample();
+  }
+
+  /** Parses the sample in the browser like any other document, but sends nothing: the
+   * backend already holds an index of the same text. The chunks are still needed here
+   * for the viewer's highlights. */
+  private async loadSample(): Promise<void> {
+    const version = this.documentVersion();
+    this.parsing.set(true);
+    try {
+      const response = await fetch(SAMPLE_PDF, { cache: 'force-cache' });
+      if (!response.ok) throw new Error(String(response.status));
+      const file = new File([await response.blob()], SAMPLE_PDF, { type: 'application/pdf' });
+      const parsed = await this.pdf.parse(file);
+      if (version !== this.documentVersion()) return;
+      this.doc.set(parsed);
+      this.backend.useDemoDocument(parsed.chunks);
+    } catch {
+      if (version === this.documentVersion())
+        this.parseError.set("Couldn't load the sample document. Reload the page to try again.");
+    } finally {
+      if (version === this.documentVersion()) this.parsing.set(false);
+    }
   }
 
   ngOnDestroy(): void {

@@ -2,8 +2,12 @@
 // so the host has to be the flex item that grows -- otherwise `flex: 1` inside resolves
 // against a host that never stretched, and the view collapses to its content height.
 // `min-height: 0` lets the scrolling children shrink instead of overflowing the column.
+//
+// A column, not a row: the demo's request-access banner is a second child of this host
+// and belongs under the three panes, full width. As a row it became a fourth column.
 :host {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }

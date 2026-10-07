@@ -22,7 +22,11 @@ Object.defineProperty(globalThis.crypto, 'randomUUID', {
 
 type Status = 'none' | 'creating' | 'ready' | 'indexing' | 'error';
 
-function setup(status: Status = 'ready', error: string | null = null) {
+function setup(
+  status: Status = 'ready',
+  error: string | null = null,
+  capacitySpentFor: number | null = null,
+) {
   const events = new Subject<BackendChatEvent>();
   const chat = jest.fn(() => events);
   TestBed.configureTestingModule({
@@ -32,6 +36,7 @@ function setup(status: Status = 'ready', error: string | null = null) {
         useValue: {
           sessionStatus: signal<Status>(status),
           sessionError: signal<string | null>(error),
+          capacitySpentFor: signal<number | null>(capacitySpentFor),
           chat$: chat,
         },
       },
@@ -240,5 +245,47 @@ describe('document replacement (#31)', () => {
     panel.submit('q');
     fixture.destroy();
     expect(events.observed).toBe(false);
+  });
+});
+
+describe('ChatPanelComponent capacity', () => {
+  it('shows the day-length limit as a time and disables the composer', () => {
+    const { el, fixture } = setup('ready', null, 14400);
+
+    const banner = el.querySelector('.capacity')?.textContent ?? '';
+    expect(banner).toContain("Today's usage limit has been reached");
+    // Hours, not the rate limiter's "wait a moment": waiting a moment will not fix it.
+    expect(banner).toContain('in about 4 hours');
+    expect(fixture.componentInstance.composerDisabled()).toBe(true);
+  });
+
+  it('says nothing while there is capacity', () => {
+    const { el } = setup('ready');
+
+    expect(el.querySelector('.capacity')).toBeNull();
+  });
+
+  it('offers the sample questions in the demo and the generic ones otherwise', () => {
+    const { fixture } = setup('ready');
+
+    expect(fixture.componentInstance.suggested()).toContain('Summarize this document');
+
+    fixture.componentRef.setInput('demo', true);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.suggested()).toContain(
+      'What problem does this document describe?',
+    );
+  });
+
+  it('names NVIDIA NIM on the demo, so the page never implies on-device processing', () => {
+    const { el, fixture } = setup('ready');
+
+    expect(el.querySelector('.provenance')).toBeNull();
+
+    fixture.componentRef.setInput('demo', true);
+    fixture.detectChanges();
+
+    expect(el.querySelector('.provenance')?.textContent).toContain('NVIDIA NIM');
   });
 });

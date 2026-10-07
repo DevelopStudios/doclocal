@@ -15,15 +15,23 @@
         }
       </div>
       @if (auth.user(); as user) {
-        <span class="signed-in-as">Signed in as <strong>{{ user.username }}</strong></span>
+        <span class="signed-in-as"
+          >Signed in as <strong>{{ user.username }}</strong></span
+        >
         <button class="signout-btn" type="button" (click)="signOut()">Sign out</button>
+      } @else if (door() === 'demo') {
+        <button class="signout-btn" type="button" (click)="door.set('signin')">Sign in</button>
+      } @else {
+        <button class="signout-btn" type="button" (click)="door.set('demo')">Try the demo</button>
       }
     </div>
   </header>
 
   @if (auth.status() === 'signed-in') {
     <app-workspace />
+  } @else if (door() === 'signin') {
+    <app-login (tryDemo)="door.set('demo')" />
   } @else {
-    <app-login />
+    <app-workspace [demo]="true" />
   }
 </div>

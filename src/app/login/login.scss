@@ -11,8 +11,12 @@
 .login {
   flex: 1;
   display: flex;
+  // A column: the card is centred, and the request-access exit sits under it rather
+  // than beside it.
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   padding: 32px;
   overflow-y: auto;
 }
@@ -68,6 +72,27 @@
 .error {
   font-size: 13px;
   color: #f87171;
+}
+
+// The gate is no longer a dead end. Both exits are useless if they are invisible.
+.exits {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.link-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .submit {

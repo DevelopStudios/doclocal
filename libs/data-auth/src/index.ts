@@ -4,6 +4,7 @@ export {
   AUTH_FETCH,
   AUTH_REVALIDATE_INTERVAL_MS,
   SIGN_IN_MESSAGES,
+  DEMO_MESSAGES,
 } from './lib/auth.service';
 export type { AuthStatus, AuthUser } from './lib/auth.service';
 export { resolveApiBaseUrl, isLoopback } from './lib/api-url';
