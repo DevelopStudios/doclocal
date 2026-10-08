@@ -63,16 +63,17 @@
 
     @if (requestOpen()) {
       <div class="request-panel" id="request-access">
-        <p>Accounts are created by hand. Send a short note telling me:</p>
+        <p>Accounts are created by hand. Send a short note with:</p>
         <ul>
           <li>who you are</li>
           <li>what you would use DocLocal for</li>
         </ul>
-        <button class="request-mail" type="button" (click)="requestAccess()">
-          Open email with template
-        </button>
-        @if (revealedAddress(); as address) {
-          <p class="request-fallback">No mail app? Email {{ address }}</p>
+        <button class="request-mail" type="button" (click)="requestAccess()">Open in Gmail</button>
+        @if (address(); as address) {
+          <p class="request-fallback">
+            Not using Gmail? <a [href]="mailtoLink()">Open your own mail app</a>, or write to
+            <span class="request-address">{{ address }}</span>
+          </p>
         }
       </div>
     }

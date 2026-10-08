@@ -19,7 +19,9 @@
 
 .card {
   width: 100%;
-  max-width: 360px;
+  // 360px left the request panel's copy wrapping mid-sentence and the address
+  // breaking mid-word; the form itself reads better with the extra room too.
+  max-width: 420px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -120,7 +122,12 @@
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   font-size: 13px;
+  line-height: 1.5;
   color: var(--color-text-muted);
+
+  p {
+    margin: 0;
+  }
 
   ul {
     margin: 0;
@@ -152,7 +159,16 @@
 
 .request-fallback {
   font-size: 12px;
-  // Long on a narrow card, and meant to be selected rather than read.
-  word-break: break-all;
+
+  a {
+    color: var(--color-accent);
+  }
+}
+
+.request-address {
+  // Meant to be selected rather than read. `anywhere` wraps at the edge only if it
+  // truly has to; `break-all` used to split it mid-word even with room to spare.
+  overflow-wrap: anywhere;
   user-select: all;
+  color: var(--color-text);
 }

@@ -1,18 +1,18 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '@doclocal/data-auth';
-import { Login, MAILTO_OPENER } from './login';
+import { COMPOSE_OPENER, Login } from './login';
 
 describe('Login (request access)', () => {
-  let openMail: jasmine.Spy;
+  let openCompose: jasmine.Spy;
   let login: jasmine.Spy;
 
   beforeEach(() => {
-    openMail = jasmine.createSpy('openMail');
+    openCompose = jasmine.createSpy('openCompose');
     login = jasmine.createSpy('login').and.resolveTo(true);
     TestBed.configureTestingModule({
       providers: [
-        { provide: MAILTO_OPENER, useValue: openMail },
+        { provide: COMPOSE_OPENER, useValue: openCompose },
         {
           provide: AuthService,
           useValue: {
@@ -67,19 +67,22 @@ describe('Login (request access)', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
-  it('composes a mailto with the tagged recipient, subject and template', () => {
+  it('composes in Gmail over https, so no mail handler is required', () => {
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
     toggle(el).click();
     fixture.detectChanges();
     el.querySelector<HTMLButtonElement>('.request-mail')!.click();
 
-    expect(openMail).toHaveBeenCalledTimes(1);
-    const raw = openMail.calls.mostRecent().args[0] as string;
+    expect(openCompose).toHaveBeenCalledTimes(1);
+    const raw = openCompose.calls.mostRecent().args[0] as string;
     const url = new URL(raw);
-    expect(url.protocol).toBe('mailto:');
-    expect(url.pathname).toBe('charlit641+doclocal@gmail.com');
-    expect(url.searchParams.get('subject')).toBe('DocLocal access request');
+    // https, never mailto: an unhandled mailto: answers with ERR_UNKNOWN_URL_SCHEME
+    // and takes the page with it.
+    expect(url.protocol).toBe('https:');
+    expect(url.host).toBe('mail.google.com');
+    expect(url.searchParams.get('to')).toBe('charlit641+doclocal@gmail.com');
+    expect(url.searchParams.get('su')).toBe('DocLocal access request');
     expect(url.searchParams.get('body')).toContain('Name:');
     // No recipient header may be smuggled in: the link is built from constants only.
     expect(url.searchParams.get('cc')).toBeNull();
@@ -89,7 +92,7 @@ describe('Login (request access)', () => {
     expect(raw).not.toMatch(/[\r\n]/);
   });
 
-  it('reveals a copyable address only once the mail client has been asked for', () => {
+  it('offers a mailto and a copyable address once Gmail has been opened', () => {
     const fixture = render();
     const el: HTMLElement = fixture.nativeElement;
     toggle(el).click();
@@ -98,8 +101,12 @@ describe('Login (request access)', () => {
 
     el.querySelector<HTMLButtonElement>('.request-mail')!.click();
     fixture.detectChanges();
-    expect(el.querySelector('.request-fallback')?.textContent).toContain(
+    const fallback = el.querySelector('.request-fallback');
+    expect(fallback?.querySelector('.request-address')?.textContent).toContain(
       'charlit641+doclocal@gmail.com',
     );
+    const mailto = fallback?.querySelector('a')?.getAttribute('href');
+    expect(mailto).toContain('mailto:charlit641+doclocal@gmail.com');
+    expect(mailto).toContain('subject=DocLocal%20access%20request');
   });
 });
