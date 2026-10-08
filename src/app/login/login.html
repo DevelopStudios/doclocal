@@ -48,5 +48,33 @@
     >
       {{ auth.status() === 'signing-in' ? 'Signing in…' : 'Sign in' }}
     </button>
+
+    <!-- type="button" is load-bearing: this sits inside the sign-in form, and a default
+         submit button here would try to sign in every time someone opened the panel. -->
+    <button
+      class="request-toggle"
+      type="button"
+      [attr.aria-expanded]="requestOpen()"
+      aria-controls="request-access"
+      (click)="toggleRequest()"
+    >
+      No account? Request access
+    </button>
+
+    @if (requestOpen()) {
+      <div class="request-panel" id="request-access">
+        <p>Accounts are created by hand. Send a short note telling me:</p>
+        <ul>
+          <li>who you are</li>
+          <li>what you would use DocLocal for</li>
+        </ul>
+        <button class="request-mail" type="button" (click)="requestAccess()">
+          Open email with template
+        </button>
+        @if (revealedAddress(); as address) {
+          <p class="request-fallback">No mail app? Email {{ address }}</p>
+        }
+      </div>
+    }
   </form>
 </main>
