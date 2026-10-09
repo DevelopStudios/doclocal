@@ -16,7 +16,7 @@ import { MessageComponent } from '../message/message.component';
 import { ComposerComponent } from '../composer/composer.component';
 import type { Citation, Message } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
-import { citedSpans, repairCitations, spansForCitation } from './citations';
+import { attachCitations, citedSpans, repairCitations, spansForCitation } from './citations';
 
 @Component({
   selector: 'chat-panel',
@@ -217,8 +217,10 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
           } else if (event.type === 'done') {
             if (event.finishReason === 'length') this.truncated.set(true);
             // gpt-oss can spend the whole token budget reasoning and return no visible text.
+            // attachCitations first: it only fires when the model emitted no markers at all,
+            // and repairCitations can then renumber whatever is there, from either source.
             const content =
-              repairCitations(fullContent, citations) ||
+              repairCitations(attachCitations(fullContent, citations), citations) ||
               (event.finishReason === 'length'
                 ? 'No answer: the model hit its token limit. Try a narrower question.'
                 : '');

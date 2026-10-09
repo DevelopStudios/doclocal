@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { BackendChatEvent } from '@doclocal/data-backend';
 import type { PdfChunk } from '@doclocal/data-pdf';
+import { LOCAL_MAX_TOKENS, LOCAL_SYSTEM, buildLocalUserTurn } from '@doclocal/feature-chat';
 import { RagService } from '@doclocal/data-rag';
 import { LlmService } from '@doclocal/data-webllm';
 
@@ -15,14 +16,6 @@ import { LlmService } from '@doclocal/data-webllm';
  */
 // Lowest rung #56 measured as presentable. #59 replaces this with a capability probe.
 const LOCAL_MODEL = 'Qwen3.5-2B-q4f16_1-MLC';
-
-// Interim prompt so the local path is usable end to end; #58 owns the hardened version.
-const SYSTEM = [
-  'You answer questions about a document using only the excerpts given to you.',
-  'Cite every claim with the number of the excerpt it came from, like [1].',
-  'Answer in at most 3 sentences. Start with the answer; never open with a preamble.',
-  'If the excerpts do not contain the answer, reply exactly: I could not find that in the document.',
-].join('\n');
 
 @Injectable()
 export class LocalBackend {
@@ -54,7 +47,7 @@ export class LocalBackend {
     this.sessionStatus.set('indexing');
     this.ensureModel();
 
-    return new Observable<void>(observer => {
+    return new Observable<void>((observer) => {
       let cancelled = false;
       const sub = this.rag.buildIndex$(chunks).subscribe({
         error: (e: Error) => {
@@ -87,7 +80,7 @@ export class LocalBackend {
   }
 
   chat$(question: string): Observable<BackendChatEvent> {
-    return new Observable<BackendChatEvent>(observer => {
+    return new Observable<BackendChatEvent>((observer) => {
       let generation: { unsubscribe(): void } | null = null;
 
       const retrieval = this.rag.query$(question, 5).subscribe({
@@ -98,10 +91,10 @@ export class LocalBackend {
             code: 'retrieval_failed',
             retryable: true,
           }),
-        next: results => {
+        next: (results) => {
           observer.next({
             type: 'citations',
-            citations: results.map(r => ({
+            citations: results.map((r) => ({
               chunkId: r.chunk.id,
               text: r.chunk.text,
               pageNumber: r.chunk.pageNumber,
@@ -110,13 +103,9 @@ export class LocalBackend {
             })),
           });
 
-          const prompt = [
-            ...results.map((r, i) => `[${i + 1}] ${r.chunk.text}`),
-            '',
-            `Question: ${question}`,
-          ].join('\n');
+          const prompt = buildLocalUserTurn(results, question);
 
-          generation = this.llm.generate$(prompt, SYSTEM, 400).subscribe({
+          generation = this.llm.generate$(prompt, LOCAL_SYSTEM, LOCAL_MAX_TOKENS).subscribe({
             next: ({ token }) => observer.next({ type: 'token', token }),
             error: (e: Error) => {
               observer.next({
@@ -144,14 +133,14 @@ export class LocalBackend {
 
   /** Nothing is stored off-device, so ending a session is just dropping local state. */
   deleteSession$(): Observable<void> {
-    return new Observable<void>(observer => {
+    return new Observable<void>((observer) => {
       this.clearSession();
       observer.complete();
     });
   }
 
   private whenModelReady(): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       const settled = () => this.llm.loaded() || this.llm.error() !== null;
       if (settled()) return resolve();
       const timer = setInterval(() => {
