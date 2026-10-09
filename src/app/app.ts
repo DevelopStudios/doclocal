@@ -1,5 +1,6 @@
 import { Component, effect, inject, signal } from '@angular/core';
 import { AuthService } from '@doclocal/data-auth';
+import { isLocalMode } from './local-mode';
 import { Login } from './login/login';
 import { Workspace } from './workspace/workspace';
 
@@ -19,6 +20,12 @@ type Theme = 'dark' | 'light' | 'mono';
 })
 export class App {
   readonly auth = inject(AuthService);
+
+  /**
+   * On-device mode needs no account: it spends nothing and sends nothing, so the
+   * sign-in gate would only be in the way (issue #61 makes this the real free tier).
+   */
+  readonly localMode = isLocalMode();
 
   theme = signal<Theme>('dark');
 
