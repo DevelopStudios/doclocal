@@ -1,8 +1,9 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { PdfService } from '@doclocal/data-pdf';
 import type { HighlightSpan, PdfDocument } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
+import { isLocalMode } from '../local-mode';
 import { ChatPanelComponent } from '@doclocal/feature-chat';
 import type { HeatResult } from '@doclocal/feature-pdf-viewer';
 import {
@@ -27,6 +28,24 @@ import {
 export class Workspace implements OnInit, OnDestroy {
   private pdf = inject(PdfService);
   backend = inject(BackendService);
+
+  readonly localMode = isLocalMode();
+
+  /**
+   * On-device only: the weights are a multi-GB download, so the wait needs a number
+   * against it rather than an apparently stalled "Indexing" line.
+   */
+  readonly modelStatus = computed(() => {
+    const local = this.backend as unknown as {
+      modelLoading?: () => boolean;
+      modelProgress?: () => number;
+      modelReady?: () => boolean;
+    };
+    if (!local.modelLoading) return '';
+    if (local.modelLoading()) return `Downloading model… ${Math.round((local.modelProgress?.() ?? 0) * 100)}%`;
+    if (local.modelReady?.()) return 'Model ready — answers run on this device';
+    return '';
+  });
 
   doc = signal<PdfDocument | null>(null);
   highlights = signal<HighlightSpan[]>([]);

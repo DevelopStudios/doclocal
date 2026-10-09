@@ -21,7 +21,7 @@
     </div>
   </header>
 
-  @if (auth.status() === 'signed-in') {
+  @if (localMode || auth.status() === 'signed-in') {
     <app-workspace />
   } @else {
     <app-login />

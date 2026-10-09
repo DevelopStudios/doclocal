@@ -11,6 +11,9 @@
     } @else {
       <div class="doc-empty">No document loaded</div>
     }
+    @if (localMode && modelStatus(); as status) {
+      <div class="doc-meta" role="status">{{ status }}</div>
+    }
   </aside>
 
   <section class="chat-col">
@@ -41,10 +44,17 @@
     } @else {
       <div class="upload-wrapper">
         <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
-        <p class="notice-text" role="note">
-          The PDF is read in your browser, but its text and your questions are sent to NVIDIA NIM
-          through the DocLocal backend. Use documents you are comfortable sharing.
-        </p>
+        @if (localMode) {
+          <p class="notice-text" role="note">
+            This document is read, indexed and answered entirely in your browser. Nothing is
+            uploaded and no account is needed. The first question downloads a ~2 GB model.
+          </p>
+        } @else {
+          <p class="notice-text" role="note">
+            The PDF is read in your browser, but its text and your questions are sent to NVIDIA NIM
+            through the DocLocal backend. Use documents you are comfortable sharing.
+          </p>
+        }
         @if (parsing()) {
           <p class="status-text">Parsing document…</p>
         }
