@@ -49,6 +49,11 @@ function claimBefore(text: string): Set<string> {
  * another excerpt shares clearly more keywords with its claim (at least two, and more than the
  * cited excerpt). The model reliably marks *where* a citation goes, not *which* excerpt.
  */
+/** Back-to-back markers for the same excerpt, e.g. `[3][3]` or `[3] [3]`, collapse into one. */
+function collapseRepeats(text: string): string {
+    return text.replace(/(\[(\d+)\])(\s*\[\2\])+/g, '$1');
+}
+
 export function repairCitations(content: string, citations: Citation[]): string {
     const leading = content.match(/^\s*((?:\[\d+\]\s*)+)/);
     if (leading) {
@@ -58,14 +63,14 @@ export function repairCitations(content: string, citations: Citation[]): string 
         const at = end === -1 ? rest.length : end + 1;
         content = `${rest.slice(0, at)} ${leading[1].trim()}${rest.slice(at)}`;
     }
-    content = content.replace(/(\[(\d+)\])(\s*\[\2\])+/g, '$1');
+    content = collapseRepeats(content);
 
     const excerptKeywords = citations.map(c => keywords(c.text));
     const support = (claim: Set<string>, index: number) =>
         [...claim].filter(t => excerptKeywords[index]?.has(t)).length;
 
     let prevEnd = 0;
-    return content.replace(/\[(\d+)\]/g, (marker, n: string, offset: number) => {
+    const renumbered = content.replace(/\[(\d+)\]/g, (marker, n: string, offset: number) => {
         const claim = claimBefore(content.slice(prevEnd, offset));
         prevEnd = offset + marker.length;
 
@@ -78,6 +83,9 @@ export function repairCitations(content: string, citations: Citation[]): string 
         });
         return best !== cited && bestScore >= 2 ? `[${best + 1}]` : marker;
     });
+    // Collapse again: renumbering can rewrite a marker onto the value of its neighbour,
+    // creating a duplicate that the pass above ran too early to see.
+    return collapseRepeats(renumbered);
 }
 
 /**

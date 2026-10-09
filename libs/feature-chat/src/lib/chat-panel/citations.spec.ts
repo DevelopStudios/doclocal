@@ -149,3 +149,45 @@ describe('highlight fallback (#33)', () => {
         expect(citedSpans('Solar panels generate electricity [1].', [excerpts[0], cite('solar', 'Solar panels generate electricity.')])).toEqual([]);
     });
 });
+
+describe('repairCitations, duplicate markers', () => {
+    const scheduling = cite('c1', 'Scheduling notes for the quarter ahead.');
+    const budget = cite('c2', 'Budget headroom was approved by the finance committee.');
+    const constraints = cite('c3',
+        'The plant cannot be taken offline and the existing floor cannot carry additional dead load, ' +
+        'and the site is already at 92 percent capacity.');
+    const excerpts = [scheduling, budget, constraints];
+
+    it('collapses a duplicate the model emitted', () => {
+        const out = repairCitations(
+            'The site is already at 92 percent capacity [3][3].', excerpts);
+
+        expect(out).toBe('The site is already at 92 percent capacity [3].');
+    });
+
+    it('collapses a duplicate created by the renumbering pass', () => {
+        // [2] renumbers to [3] because the claim matches excerpt 3, landing next to an existing [3].
+        const out = repairCitations(
+            'The plant cannot be taken offline and the floor cannot carry additional dead load [2][3].',
+            excerpts);
+
+        expect(out).toBe(
+            'The plant cannot be taken offline and the floor cannot carry additional dead load [3].');
+    });
+
+    it('collapses a renumbering duplicate separated by a space', () => {
+        const out = repairCitations(
+            'The plant cannot be taken offline and the floor cannot carry additional dead load [2] [3].',
+            excerpts);
+
+        expect(out).toBe(
+            'The plant cannot be taken offline and the floor cannot carry additional dead load [3].');
+    });
+
+    it('leaves two genuinely different markers alone', () => {
+        const out = repairCitations(
+            'Budget headroom was approved by the finance committee [2][1].', excerpts);
+
+        expect(out).toContain('[2]');
+    });
+});
