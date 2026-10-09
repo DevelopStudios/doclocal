@@ -1,5 +1,6 @@
 import type { HighlightSpan } from '@doclocal/data-pdf';
 import type { Citation } from '../model';
+import { NOT_FOUND } from './prompt';
 
 const STOPWORDS = new Set((
     'the and for are was were been being has have had not but with from this that these those ' +
@@ -157,4 +158,51 @@ export function spansForCitation(content: string, citations: Citation[], citatio
         startWord: citation.startWord,
         endWord: citation.startWord + citation.text.split(' ').length,
     }];
+}
+
+/**
+ * Marks an answer the model left uncited, attaching each sentence to the excerpt it shares the
+ * most distinctive terms with — the same document-frequency idea as `citedSpans`, scored per
+ * excerpt rather than per sentence, so a term carried by most excerpts cannot choose between them.
+ *
+ * `repairCitations` renumbers markers but cannot create them, so without this a model that emits
+ * none leaves the answer with no chips and no highlighting at all — the product's core feature
+ * dead. Insurance only: the prompt is still what is supposed to produce the markers, so an answer
+ * that already carries any is left untouched, and a sentence with no clear excerpt stays unmarked
+ * rather than pointing at an arbitrary one.
+ */
+export function attachCitations(content: string, citations: Citation[]): string {
+    if (!content.trim() || citations.length === 0) return content;
+    // Only a model that cited nothing needs help; never second-guess one that did.
+    if (/\[\d+\]/.test(content)) return content;
+    // A refusal cites nothing by definition.
+    if (content.trim() === NOT_FOUND) return content;
+
+    const excerptKeywords = citations.map(c => keywords(c.text));
+    const docFreq = new Map<string, number>();
+    for (const set of excerptKeywords) {
+        for (const t of set) docFreq.set(t, (docFreq.get(t) ?? 0) + 1);
+    }
+    // A term in half the excerpts or more cannot distinguish between them.
+    const maxDocFreq = Math.max(1, Math.floor(citations.length / 2));
+    const distinctive = (t: string) => (docFreq.get(t) ?? 0) <= maxDocFreq;
+
+    const bestExcerpt = (sentence: string): number | null => {
+        const claim = [...keywords(sentence)].filter(distinctive);
+        let best: number | null = null;
+        let bestScore = 1; // at least two shared terms, as a single one is too weak to trust
+        excerptKeywords.forEach((set, i) => {
+            const score = claim.filter(t => set.has(t)).length;
+            if (score > bestScore) { best = i; bestScore = score; }
+        });
+        return best;
+    };
+
+    return content.replace(/[^.!?]+[.!?]*/g, sentence => {
+        if (!sentence.trim()) return sentence;
+        const best = bestExcerpt(sentence);
+        if (best === null) return sentence;
+        const [, body, stop, trailing] = sentence.match(/^(.*?)([.!?]*)(\s*)$/s) ?? [];
+        return `${body} [${best + 1}]${stop}${trailing}`;
+    });
 }
