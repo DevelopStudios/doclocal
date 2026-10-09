@@ -5,7 +5,7 @@
 
   // Requests that arrive while the model is still downloading wait for it instead of failing
   // (a PDF dropped in right after page load used to get "Model not ready" and an empty index).
-  // q8 rather than fp32, measured on the shared evaluation fixtures (issue #62, ?bench=embed):
+  // q8 rather than fp32, measured on the shared evaluation fixtures (issue #62):
   // identical retrieval at the k=5 this app queries with, a median embed slightly faster than
   // fp32, and 22.6 MB to download instead of 86.9 MB. On the free tier the download is the
   // binding constraint -- it is the one model a phone can still run -- so 74% off it is worth

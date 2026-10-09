@@ -1,7 +1,6 @@
 import { Component, effect, inject, signal } from '@angular/core';
 import { AuthService } from '@doclocal/data-auth';
-import { HOSTED_MODE, isEmbedBench } from './tier-mode';
-import { EmbedBench } from './bench/embed-bench';
+import { HOSTED_MODE } from './tier-mode';
 import { Login } from './login/login';
 import { Workspace } from './workspace/workspace';
 
@@ -15,7 +14,7 @@ type Theme = 'dark' | 'light' | 'mono';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [EmbedBench, Login, Workspace],
+  imports: [Login, Workspace],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -27,9 +26,6 @@ export class App {
    * sign-in gate only applies to the hosted path, which does both.
    */
   readonly hostedMode = inject(HOSTED_MODE);
-
-  /** Dev-only embedder benchmark, kept out of the product flow (issue #62). */
-  readonly embedBench = isEmbedBench();
 
   theme = signal<Theme>('dark');
 

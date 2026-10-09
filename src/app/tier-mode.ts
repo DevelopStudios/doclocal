@@ -20,8 +20,3 @@ export const HOSTED_MODE = new InjectionToken<boolean>('HOSTED_MODE', {
   providedIn: 'root',
   factory: () => isHostedMode(),
 });
-
-/** Dev-only embedder benchmark page (`?bench=embed`), issue #62. */
-export function isEmbedBench(): boolean {
-  return new URLSearchParams(location.search).get('bench') === 'embed';
-}
