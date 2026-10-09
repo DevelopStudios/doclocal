@@ -21,7 +21,9 @@
     </div>
   </header>
 
-  @if (!hostedMode || auth.status() === 'signed-in') {
+  @if (embedBench) {
+    <app-embed-bench />
+  } @else if (!hostedMode || auth.status() === 'signed-in') {
     <app-workspace />
   } @else {
     <app-login />
