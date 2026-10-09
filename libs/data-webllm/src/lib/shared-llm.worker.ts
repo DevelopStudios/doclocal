@@ -4,11 +4,20 @@
 // once and shared by every open tab.
 //
 // Protocol (flat messages, same shape as the old dedicated worker):
-//   in:  { type: 'load', modelId } | { type: 'generate', prompt, reqId } | { type: 'abort', reqId }
+//   in:  { type: 'load', modelId } | { type: 'generate', prompt, reqId, system?, maxTokens? }
+//        | { type: 'abort', reqId }
 //   out: { type: 'loadProgress', progress } | { type: 'loaded' } | { type: 'error', reqId: '', message }
 //        { type: 'token' | 'done' | 'error', reqId, ... }   (sent to the requesting tab only)
 import { CreateMLCEngine } from '@mlc-ai/web-llm';
-import type { MLCEngineInterface } from '@mlc-ai/web-llm';
+import type { ChatCompletionMessageParam, MLCEngineInterface } from '@mlc-ai/web-llm';
+import { createThinkFilter } from './think-filter';
+
+// Qwen3/Qwen3.5 are hybrid reasoning models. Left to themselves they spend the whole
+// token budget on a <think> block and the answer never arrives — measured on
+// Qwen3.5-0.8B, 2 of 3 questions returned no answer at all. Thinking off, greedy
+// decoding, and a budget big enough for a 3-sentence cited answer.
+const THINKING_OFF = { enable_thinking: false };
+const DEFAULT_MAX_TOKENS = 400;
 
 const ports = new Set<MessagePort>();
 const activeReqs = new Map<string, MessagePort>(); // reqId => requesting port
@@ -60,25 +69,51 @@ const load = (modelId: string, port: MessagePort) => {
   })();
 };
 
-const generate = async (prompt: string, reqId: string, port: MessagePort) => {
+interface GenerateRequest {
+  prompt: string;
+  reqId: string;
+  system?: string;
+  maxTokens?: number;
+}
+
+const generate = async (req: GenerateRequest, port: MessagePort) => {
+  const { prompt, reqId, system, maxTokens } = req;
   if (!engine) {
     port.postMessage({ type: 'error', reqId, message: 'Engine not loaded' });
     return;
   }
   runningReqId = reqId;
+  // Rules in a system message, document text only in the user message: small models
+  // follow the citation format far better when the two are separated (see issue #58),
+  // and the backend's prompt.py splits them for the same reason.
+  const messages: ChatCompletionMessageParam[] = system
+    ? [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ]
+    : [{ role: 'user', content: prompt }];
+  const think = createThinkFilter();
   try {
     await engine.resetChat();
     const stream = await engine.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
+      messages,
       stream: true,
-      max_tokens: 512,
+      max_tokens: maxTokens ?? DEFAULT_MAX_TOKENS,
+      temperature: 0,
+      extra_body: THINKING_OFF,
     });
     for await (const chunk of stream) {
       if (aborted.has(reqId)) break;
-      const token = chunk.choices[0]?.delta?.content ?? '';
+      const raw = chunk.choices[0]?.delta?.content ?? '';
+      // Filter before the token crosses the port, so no consumer can render a tag.
+      const token = raw ? think.push(raw) : '';
       if (token) port.postMessage({ type: 'token', reqId, token });
     }
-    if (!aborted.has(reqId)) port.postMessage({ type: 'done', reqId });
+    if (!aborted.has(reqId)) {
+      const tail = think.flush();
+      if (tail) port.postMessage({ type: 'token', reqId, token: tail });
+      port.postMessage({ type: 'done', reqId });
+    }
   } catch (e) {
     if (!aborted.has(reqId)) {
       port.postMessage({ type: 'error', reqId, message: (e as Error).message });
@@ -95,7 +130,7 @@ onconnect = (e: MessageEvent) => {
   ports.add(port);
 
   port.onmessage = (ev: MessageEvent) => {
-    const { type, modelId, prompt, reqId } = ev.data;
+    const { type, modelId, prompt, reqId, system, maxTokens } = ev.data;
     switch (type) {
       case 'load':
         load(modelId, port);
@@ -103,7 +138,7 @@ onconnect = (e: MessageEvent) => {
       case 'generate':
         activeReqs.set(reqId, port);
         queue = queue.then(() => {
-          if (!aborted.has(reqId)) return generate(prompt, reqId, port);
+          if (!aborted.has(reqId)) return generate({ prompt, reqId, system, maxTokens }, port);
           aborted.delete(reqId);
           activeReqs.delete(reqId);
         });

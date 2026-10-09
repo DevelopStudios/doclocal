@@ -39,7 +39,11 @@ export const DEFAULT_MODEL = 'Qwen2.5-3B-Instruct-q4f16_1-MLC';
       this.port.postMessage({ type: 'load', modelId });
     }
 
-    generate$(prompt: string): Observable<LlmToken> {
+    /**
+     * Stream an answer. `system` carries the rules (kept out of the user turn so small
+     * models hold the citation format), `maxTokens` caps the answer length.
+     */
+    generate$(prompt: string, system?: string, maxTokens?: number): Observable<LlmToken> {
       return new Observable(observer => {
         const reqId = crypto.randomUUID();
 
@@ -57,7 +61,7 @@ export const DEFAULT_MODEL = 'Qwen2.5-3B-Instruct-q4f16_1-MLC';
         };
 
         this.port.addEventListener('message', handler);
-        this.port.postMessage({ type: 'generate', prompt, reqId });
+        this.port.postMessage({ type: 'generate', prompt, reqId, system, maxTokens });
         return () => {
           this.port.removeEventListener('message', handler);
           this.port.postMessage({ type: 'abort', reqId });
