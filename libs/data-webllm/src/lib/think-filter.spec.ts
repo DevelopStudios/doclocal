@@ -13,7 +13,7 @@ describe('createThinkFilter', () => {
 describe('createThinkFilter, tags split across streamed tokens', () => {
   const streamThrough = (chunks: string[]): string => {
     const filter = createThinkFilter();
-    return chunks.map(chunk => filter.push(chunk)).join('') + filter.flush();
+    return chunks.map((chunk) => filter.push(chunk)).join('') + filter.flush();
   };
 
   it('strips an opening tag arriving one token at a time', () => {
@@ -35,7 +35,7 @@ describe('createThinkFilter, tags split across streamed tokens', () => {
 describe('createThinkFilter, degenerate blocks', () => {
   const streamThrough = (chunks: string[]): string => {
     const filter = createThinkFilter();
-    return chunks.map(chunk => filter.push(chunk)).join('') + filter.flush();
+    return chunks.map((chunk) => filter.push(chunk)).join('') + filter.flush();
   };
 
   it('removes the empty pair emitted when thinking is disabled', () => {

@@ -4,7 +4,7 @@ import type { BackendChatEvent } from '@doclocal/data-backend';
 import type { PdfChunk } from '@doclocal/data-pdf';
 import { LOCAL_MAX_TOKENS, LOCAL_SYSTEM, buildLocalUserTurn } from '@doclocal/feature-chat';
 import { RagService } from '@doclocal/data-rag';
-import { LlmService } from '@doclocal/data-webllm';
+import { LOCAL_MODEL, LlmService } from '@doclocal/data-webllm';
 
 /**
  * The on-device answer path, shaped like `BackendService` so the chat panel and the
@@ -14,9 +14,6 @@ import { LlmService } from '@doclocal/data-webllm';
  * worker and answered by `data-webllm` on WebGPU, so a session costs nothing to serve
  * and no page text leaves the browser.
  */
-// Lowest rung #56 measured as presentable. #59 replaces this with a capability probe.
-const LOCAL_MODEL = 'Qwen3.5-2B-q4f16_1-MLC';
-
 @Injectable()
 export class LocalBackend {
   private readonly rag = inject(RagService);
