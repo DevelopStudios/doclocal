@@ -1,6 +1,6 @@
 import { Component, effect, inject, signal } from '@angular/core';
 import { AuthService } from '@doclocal/data-auth';
-import { isLocalMode } from './local-mode';
+import { HOSTED_MODE } from './tier-mode';
 import { Login } from './login/login';
 import { Workspace } from './workspace/workspace';
 
@@ -22,10 +22,10 @@ export class App {
   readonly auth = inject(AuthService);
 
   /**
-   * On-device mode needs no account: it spends nothing and sends nothing, so the
-   * sign-in gate would only be in the way (issue #61 makes this the real free tier).
+   * The on-device default needs no account: it spends nothing and sends nothing, so the
+   * sign-in gate only applies to the hosted path, which does both.
    */
-  readonly localMode = isLocalMode();
+  readonly hostedMode = inject(HOSTED_MODE);
 
   theme = signal<Theme>('dark');
 

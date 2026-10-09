@@ -10,7 +10,7 @@ import { BackendService } from '@doclocal/data-backend';
 import { apiBaseUrl } from './api-config';
 import { routes } from './app.routes';
 import { LocalBackend } from './local-backend/local-backend';
-import { isLocalMode } from './local-mode';
+import { isHostedMode } from './tier-mode';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -19,17 +19,18 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     // Both the sign-in and the document API are reached on this base.
     { provide: AUTH_API_BASE_URL, useValue: apiBaseUrl },
-    // On-device mode answers from `data-rag` + `data-webllm` and calls no hosted route.
+    // The default: answer from `data-rag` + `data-webllm`, calling no hosted route at all.
     // `LocalBackend` matches the surface the chat panel uses; the cast is only needed
     // because `BackendService`'s private fields make the two structurally distinct.
-    ...(isLocalMode()
-      ? [
+    // `?hosted=1` leaves the real `BackendService` in place instead.
+    ...(isHostedMode()
+      ? []
+      : [
           LocalBackend,
           {
             provide: BackendService,
             useExisting: LocalBackend as unknown as typeof BackendService,
           },
-        ]
-      : []),
+        ]),
   ],
 };

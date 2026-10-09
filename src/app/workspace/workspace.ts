@@ -3,7 +3,7 @@ import { Subscription } from 'rxjs';
 import { PdfService } from '@doclocal/data-pdf';
 import type { HighlightSpan, PdfDocument } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
-import { isLocalMode } from '../local-mode';
+import { HOSTED_MODE } from '../tier-mode';
 import { ChatPanelComponent } from '@doclocal/feature-chat';
 import type { HeatResult } from '@doclocal/feature-pdf-viewer';
 import {
@@ -29,7 +29,7 @@ export class Workspace implements OnInit, OnDestroy {
   private pdf = inject(PdfService);
   backend = inject(BackendService);
 
-  readonly localMode = isLocalMode();
+  readonly localMode = !inject(HOSTED_MODE);
 
   /**
    * On-device only: the weights are a multi-GB download, so the wait needs a number

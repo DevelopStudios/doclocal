@@ -6,13 +6,14 @@ import type { AuthStatus, AuthUser } from '@doclocal/data-auth';
 import { PdfService } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
 import { App } from './app';
+import { HOSTED_MODE } from './tier-mode';
 
-describe('App (sign-in gate)', () => {
+describe('App (tier gate)', () => {
   let status: ReturnType<typeof signal<AuthStatus>>;
   let user: ReturnType<typeof signal<AuthUser | null>>;
   let logout: jasmine.Spy;
 
-  beforeEach(() => {
+  const configure = (hosted: boolean) => {
     status = signal<AuthStatus>('signed-out');
     user = signal<AuthUser | null>(null);
     logout = jasmine.createSpy('logout').and.resolveTo(undefined);
@@ -44,9 +45,10 @@ describe('App (sign-in gate)', () => {
             chat$: jasmine.createSpy('chat$'),
           },
         },
+        { provide: HOSTED_MODE, useValue: hosted },
       ],
     });
-  });
+  };
 
   const render = () => {
     const fixture = TestBed.createComponent(App);
@@ -54,7 +56,20 @@ describe('App (sign-in gate)', () => {
     return fixture;
   };
 
-  it('shows only the sign-in form while signed out', () => {
+  it('answers on the device with no account, which is the default', () => {
+    configure(false);
+
+    const el: HTMLElement = render().nativeElement;
+
+    // No sign-in: the on-device path spends nothing and sends nothing.
+    expect(el.querySelector('app-login')).toBeNull();
+    expect(el.querySelector('app-workspace')).toBeTruthy();
+    expect(el.querySelector('pdf-upload-dropzone')).toBeTruthy();
+  });
+
+  it('still gates the hosted path behind sign-in, which spends money', () => {
+    configure(true);
+
     const el: HTMLElement = render().nativeElement;
 
     expect(el.querySelector('app-login')).toBeTruthy();
@@ -64,6 +79,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('shows the workspace and who is signed in once signed in', () => {
+    configure(true);
     status.set('signed-in');
     user.set({ id: 'sign-in-1', username: 'alice' });
 
@@ -75,6 +91,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('destroys the workspace when the session ends, so nothing of it is left behind', () => {
+    configure(true);
     status.set('signed-in');
     user.set({ id: 'sign-in-1', username: 'alice' });
     const fixture = render();
@@ -90,6 +107,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('lets the signed-in view fill the shell instead of collapsing to its content', () => {
+    configure(true);
     // The shell is a flex column; App renders Workspace/Login through an extra element,
     // so each must be a growing flex item or `flex: 1` inside it resolves against a host
     // that never stretched and the whole view collapses to content height.
@@ -105,6 +123,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('lets the signed-out view fill the shell too, so the form stays centred', () => {
+    configure(true);
     const host = render().nativeElement.querySelector('app-login') as HTMLElement;
     const style = getComputedStyle(host);
 
@@ -113,6 +132,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('revokes the session on the backend when signing out', () => {
+    configure(true);
     status.set('signed-in');
     user.set({ id: 'sign-in-1', username: 'alice' });
     const fixture = render();
@@ -123,6 +143,7 @@ describe('App (sign-in gate)', () => {
   });
 
   it('offers no sign-out control while signed out', () => {
+    configure(true);
     expect(render().nativeElement.querySelector('.signout-btn')).toBeNull();
   });
 });

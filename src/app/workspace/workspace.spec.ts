@@ -4,6 +4,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { PdfService, PdfDocument } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
 import { Workspace } from './workspace';
+import { HOSTED_MODE } from '../tier-mode';
 
 describe('Workspace (NVIDIA NIM backend)', () => {
   let parse: jasmine.Spy;
@@ -27,6 +28,7 @@ describe('Workspace (NVIDIA NIM backend)', () => {
             chat$: jasmine.createSpy('chat$'),
           },
         },
+        { provide: HOSTED_MODE, useValue: true },
       ],
     });
   });
@@ -45,6 +47,34 @@ describe('Workspace (NVIDIA NIM backend)', () => {
     expect(el.querySelector('input[type=password]')).toBeNull();
     expect(el.querySelector('ui-status-chip')).toBeNull();
     expect(el.textContent).not.toMatch(/WebGPU|Change mode|Local \(WebLLM\)/);
+  });
+
+  it('tells an on-device reader their document stays in the browser', () => {
+    // The default path uploads nothing, so the NIM warning would be a false claim.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: PdfService, useValue: { parse } },
+        {
+          provide: BackendService,
+          useValue: {
+            indexDocument$: index,
+            deleteSession$: remove,
+            sessionStatus: signal('none'),
+            sessionError: signal(null),
+            chat$: jasmine.createSpy('chat$'),
+          },
+        },
+        { provide: HOSTED_MODE, useValue: false },
+      ],
+    });
+    const fixture = TestBed.createComponent(Workspace);
+    fixture.detectChanges();
+
+    const notice = fixture.nativeElement.querySelector('[role=note]')?.textContent ?? '';
+
+    expect(notice).not.toContain('NVIDIA NIM');
+    expect(notice).toContain('entirely in your browser');
   });
 
   it('parses in the browser and indexes the chunks on the backend', async () => {
