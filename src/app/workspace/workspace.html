@@ -26,21 +26,14 @@
 
   <section class="pdf-col">
     @if (doc()) {
-      <div class="pdf-with-minimap">
-        <pdf-viewer
-          [doc]="doc()!"
-          [highlights]="highlights()"
-          (pageVisible)="activePage.set($event)"
-        />
-        @if (ragResults().length) {
-          <pdf-heat-minimap
-            [pageCount]="doc()!.pageCount"
-            [ragResults]="ragResults()"
-            [activePage]="activePage()"
-            (pageClicked)="onPageClicked($event)"
-          />
-        }
-      </div>
+      <pdf-viewer
+        [doc]="doc()!"
+        [highlights]="highlights()"
+        [ragResults]="ragResults()"
+        [activePage]="activePage()"
+        (pageVisible)="activePage.set($event)"
+        (pageClicked)="onPageClicked($event)"
+      />
     } @else {
       <div class="upload-wrapper">
         <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
