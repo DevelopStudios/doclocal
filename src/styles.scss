@@ -26,6 +26,10 @@
          interactive nor evidence, so a spinner can't be mistaken for
          something to click or for a source. Alias: --color-busy-progress.
 
+     --color-warning   FAILURE ONLY.
+         A warning glyph, an error line, "this cannot run on this device". Its
+         own role so nothing borrows the citation amber to report a problem.
+
    The remaining colour tokens are a plain surface/text ladder:
      bg < surface < surface-raised  (page, then cards, then the active card)
      text > text-muted > text-dim   (primary, secondary, decorative)
@@ -122,6 +126,13 @@
   --color-busy: #8fa0b5;
   --color-busy-progress: var(--color-busy); /* alias */
 
+  /* FAILURE ONLY -- a warning glyph, an error line, "this cannot run here".
+     Its own role so that nothing reaches for --color-evidence (also amber, but
+     citations) to say something is wrong. The TONE is borrowed from evidence
+     rather than invented: no new value enters the palette until design supplies
+     a warning tone of its own. */
+  --color-warning: #e8b45e;
+
   --color-paper: #f4f6f8; /* the sheet, floating on the dark page */
 
   --color-scrollbar: rgb(157 174 194 / 0.3);
@@ -152,6 +163,10 @@
   --color-evidence-wash: rgb(138 90 8 / 0.14);
 
   --color-busy: #64748b;
+
+  /* FAILURE ONLY. Same borrowed tone as evidence takes on light, for the same
+     reason: the dark theme's amber is invisible on white. */
+  --color-warning: #8a5a08;
 
   --color-paper: #ffffff; /* the sheet, against the slightly cooler page */
 

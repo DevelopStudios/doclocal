@@ -27,8 +27,28 @@ export class LocalBackend {
   readonly modelProgress = this.llm.loadProgress;
   readonly modelReady = this.llm.loaded;
 
+  /**
+   * Why the model could not load, already turned into a sentence for the reader by
+   * `data-webllm` (`loadFailureMessage`, including the no-WebGPU case which it decides
+   * before the worker is ever asked). Passed straight through: the workspace shows this
+   * text and writes none of its own.
+   */
+  readonly modelError = this.llm.error;
+
   private chunks: PdfChunk[] = [];
   private modelRequested = false;
+
+  /**
+   * Begin the weights download before there is a document.
+   *
+   * It is multiple GB and the first question cannot be answered without it, so the wait
+   * overlaps with reading the landing state instead of starting after a PDF is dropped.
+   * It also surfaces a device that cannot run the model at all on landing, rather than
+   * one drag-and-drop later.
+   */
+  startModel(): void {
+    this.ensureModel();
+  }
 
   clearSession(): void {
     this.chunks = [];

@@ -1,0 +1,103 @@
+// `margin-top: auto` on the host is what pins the shelf to the bottom of the rail,
+// whichever width the rail is in.
+:host {
+  display: block;
+  margin-top: auto;
+  flex: none;
+}
+
+// On the page background behind a hairline -- not a tinted or saturated panel. This is
+// an advertisement sitting next to an answer, and it must not read as the more
+// important of the two.
+.shelf {
+  background: var(--color-bg);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.title {
+  font-size: var(--text-ui);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+
+.list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  gap: 7px;
+}
+
+.tick {
+  flex: none;
+  margin-top: 3px;
+  color: var(--color-text-dim);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.item-title {
+  font-size: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+.item-detail {
+  font-size: var(--text-micro);
+  line-height: var(--leading-ui);
+  color: var(--color-text-muted);
+}
+
+// Keeps its accent fill -- the shelf is still an offer -- but the cursor and the dimming
+// say plainly that nothing will happen, because nothing can.
+.upgrade,
+.circle {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: none;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.upgrade {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.price {
+  margin-top: 6px;
+  text-align: center;
+  font-size: var(--text-micro);
+  color: var(--color-text-dim);
+}
+
+// The only accent fill in the collapsed rail, so the one coloured thing in it is the one
+// thing being sold.
+.circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+}
