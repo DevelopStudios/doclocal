@@ -11,35 +11,43 @@
       .bubble {
         display: inline-block; max-width: 82%;
         background: var(--color-surface); border-radius: var(--radius-md);
-        padding: 10px 14px; font-size: 14px; line-height: 1.7;
+        padding: 10px 14px; font-size: var(--text-ui); line-height: var(--leading-body);
       }
-      .message--assistant .bubble { background: transparent; max-width: 100%; 
+      .message--assistant .bubble { background: transparent; max-width: 100%;
   padding-left: 0; }
+      /* EVIDENCE, not accent. The marker, its preview and the highlight drawn over the
+         source passage are all the same colour, so marker -> passage can be traced by
+         colour alone -- which is the whole job of a citation. */
       .cite-chip {
         position: relative; display: inline-block; border: none; margin: 0;
-        background: var(--color-accent-dim); color: var(--color-accent);
-        border-radius: 4px; padding: 0 4px; font-size: 11px; line-height: inherit;
-        font-family: var(--font-mono); cursor: pointer; vertical-align: super;
+        background: var(--color-evidence-wash); color: var(--color-evidence);
+        border-radius: 4px; padding: 0 4px; font-size: var(--text-micro); line-height: inherit;
+        font-family: var(--font-sans); cursor: pointer; vertical-align: super;
       }
+      /* The focus ring is interaction, so it is the one accent thing on a chip. */
       .cite-chip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
       .cite-chip:disabled { cursor: default; opacity: 0.6; }
       /* Fixed so the chat column's scroll container can't clip it; placed by placePreview().
          Pointer-transparent, or a preview opened below a chip would cover (and "hover") the chips under it. */
       .cite-preview {
         position: fixed; z-index: 10; pointer-events: none;
-        background: var(--color-surface); border: 1px solid var(--color-border);
+        background: var(--color-surface); border: 1px solid var(--color-hairline);
+        border-left: 3px solid var(--color-evidence);
         border-radius: var(--radius-md); padding: 10px 12px;
-        font-family: var(--font-serif); font-size: 12px; line-height: 1.6;
+        font-family: var(--font-sans); font-size: var(--text-secondary); line-height: var(--leading-body);
         color: var(--color-text); white-space: normal; text-align: left; /* buttons centre content */
-        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
       }
       .cite-preview--above { transform: translateY(-100%); }
       .cite-page {
-        display: block; font-family: var(--font-mono); font-size: 10px;
-        color: var(--color-text-muted); margin-bottom: 4px;
+        display: block; font-family: var(--font-sans); font-size: var(--text-micro);
+        line-height: var(--leading-tight); text-transform: uppercase;
+        letter-spacing: var(--tracking-caps); font-weight: var(--weight-medium);
+        color: var(--color-evidence); margin-bottom: 4px;
       }
-      .cursor { animation: blink 1s step-end infinite; color: var(--color-accent); }
-      .stage { color: var(--color-text-muted); font-style: italic; }
+      /* The caret belongs to the answer being evidenced, not to anything clickable. */
+      .cursor { animation: blink 1s step-end infinite; color: var(--color-evidence); }
+      .stage { color: var(--color-busy); font-style: italic; }
       @keyframes blink { 50% { opacity: 0; } }
     `],
     template: `
@@ -65,7 +73,7 @@
                   <span class="cite-preview" role="tooltip" [id]="previewId($index)"
                         [class.cite-preview--above]="at.above"
                         [style.left.px]="at.left" [style.top.px]="at.top" [style.width.px]="at.width">
-                    <span class="cite-page">p.{{ part.citation.pageNumber }}</span>
+                    <span class="cite-page">Page {{ part.citation.pageNumber }}</span>
                     "{{ part.citation.text.slice(0, 120) }}…"
                   </span>
                 }
