@@ -4,6 +4,10 @@ import { PdfService } from '@doclocal/data-pdf';
 import type { HighlightSpan, PdfDocument } from '@doclocal/data-pdf';
 import { BackendService } from '@doclocal/data-backend';
 import { HOSTED_MODE } from '../tier-mode';
+import { ShellState } from '../shell-state';
+import { HostedShelf } from '../hosted-shelf/hosted-shelf';
+import { WebgpuNotice } from '../webgpu-notice/webgpu-notice';
+import { middleTruncate } from '../middle-truncate';
 import { ChatPanelComponent } from '@doclocal/feature-chat';
 import type { HeatResult } from '@doclocal/feature-pdf-viewer';
 import {
@@ -11,6 +15,7 @@ import {
   PdfViewerComponent,
   UploadDropzoneComponent,
 } from '@doclocal/feature-pdf-viewer';
+import { IconComponent } from '@doclocal/ui-kit';
 
 /**
  * Everything a signed-in person works with: the document, its backend session and the
@@ -21,7 +26,15 @@ import {
 @Component({
   selector: 'app-workspace',
   standalone: true,
-  imports: [ChatPanelComponent, PdfViewerComponent, HeatMinimapComponent, UploadDropzoneComponent],
+  imports: [
+    ChatPanelComponent,
+    PdfViewerComponent,
+    HeatMinimapComponent,
+    UploadDropzoneComponent,
+    IconComponent,
+    HostedShelf,
+    WebgpuNotice,
+  ],
   templateUrl: './workspace.html',
   styleUrl: './workspace.scss',
 })
@@ -29,7 +42,13 @@ export class Workspace implements OnInit, OnDestroy {
   private pdf = inject(PdfService);
   backend = inject(BackendService);
 
+  /** Shared with the header, which names the document while the rail is collapsed. */
+  readonly shell = inject(ShellState);
+
   readonly localMode = !inject(HOSTED_MODE);
+
+  /** The filename split for middle truncation, so `.pdf` survives a narrow rail. */
+  readonly docName = computed(() => middleTruncate(this.doc()?.filename ?? ''));
 
   /**
    * On-device only: the weights are a multi-GB download, so the wait needs a number
@@ -47,6 +66,16 @@ export class Workspace implements OnInit, OnDestroy {
     return '';
   });
 
+  /**
+   * On-device only: the sentence `data-webllm` already wrote for a model that cannot
+   * load here, WebGPU missing included. Reading it through the structural shape keeps
+   * the hosted backend, which has no such field, working unchanged.
+   */
+  readonly modelError = computed(() => {
+    const local = this.backend as unknown as { modelError?: () => string | null };
+    return (this.localMode && local.modelError?.()) || null;
+  });
+
   doc = signal<PdfDocument | null>(null);
   highlights = signal<HighlightSpan[]>([]);
   ragResults = signal<HeatResult[]>([]);
@@ -62,10 +91,16 @@ export class Workspace implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     window.addEventListener('beforeunload', this.beforeUnloadHandler);
+    // Multiple GB that the first question cannot do without: start it while the reader
+    // is still looking at the empty state, and let that state report the progress.
+    if (this.localMode) {
+      (this.backend as unknown as { startModel?: () => void }).startModel?.();
+    }
   }
 
   ngOnDestroy(): void {
     window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+    this.shell.documentName.set(null);
     this.indexing.unsubscribe();
     this.documentVersion.update((v) => v + 1);
     this.backend.deleteSession$().subscribe({ error: () => undefined });
@@ -81,6 +116,7 @@ export class Workspace implements OnInit, OnDestroy {
         this.parseError.set('Server cleanup failed. The session will expire automatically.'),
     });
     this.doc.set(null);
+    this.shell.documentName.set(null);
     this.highlights.set([]);
     this.ragResults.set([]);
     this.activePage.set(1);
@@ -96,6 +132,7 @@ export class Workspace implements OnInit, OnDestroy {
       const parsed = await this.pdf.parse(file);
       if (version !== this.documentVersion()) return;
       this.doc.set(parsed);
+      this.shell.documentName.set(parsed.filename);
       // Progress and failures are shown next to the composer from backend.sessionStatus().
       this.indexing = this.backend
         .indexDocument$(parsed.chunks)

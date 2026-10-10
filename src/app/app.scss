@@ -7,12 +7,30 @@
   background: var(--color-surface);
 }
 
+/* The brand, plus the open document's name while the rail is collapsed. min-width: 0
+   lets the pair shrink so the name clips instead of pushing the actions off the bar. */
+.identity {
+  display: flex; align-items: baseline; gap: 8px;
+  min-width: 0; overflow: hidden;
+}
+
 .brand {
+  flex: none;
   font-weight: var(--weight-bold); font-size: var(--text-ui);
   letter-spacing: -0.01em;
 }
 
-.topbar-actions { display: flex; align-items: center; gap: 16px; }
+/* Same two-box middle truncation the rail's document card uses: the head clips, the
+   tail holds the extension. */
+.open-doc {
+  display: flex; align-items: baseline; min-width: 0;
+  font-size: var(--text-secondary); color: var(--color-text-muted);
+}
+.open-doc-sep { flex: none; margin-right: 8px; color: var(--color-text-dim); }
+.open-doc-head { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.open-doc-tail { flex: none; white-space: nowrap; }
+
+.topbar-actions { display: flex; align-items: center; gap: 16px; flex: none; }
 .signed-in-as { font-size: var(--text-secondary); color: var(--color-text-muted); }
 .signed-in-as strong { color: var(--color-text); font-weight: var(--weight-medium); }
 .signout-btn {

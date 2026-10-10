@@ -1,27 +1,123 @@
-<main class="body">
-  <aside class="sidebar">
-    @if (doc()) {
-      <div class="doc-card">
-        <div class="doc-name" [title]="doc()!.filename">{{ doc()!.filename }}</div>
-        <div class="doc-meta">
-          {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
-        </div>
-        <button class="replace-btn" (click)="replaceDocument()">Replace document</button>
+<main class="body" [class.body--rail-collapsed]="shell.railCollapsed()">
+  <aside class="sidebar" [class.sidebar--collapsed]="shell.railCollapsed()">
+    <!-- Always first, in both widths, so the way back out is where the way in was. -->
+    <button
+      class="rail-toggle"
+      type="button"
+      [attr.aria-expanded]="!shell.railCollapsed()"
+      [attr.aria-label]="shell.railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+      [title]="shell.railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+      (click)="shell.toggleRail()"
+    >
+      <ui-icon class="rail-toggle-chevron" name="chevron-down" [size]="16" />
+      @if (!shell.railCollapsed()) {
+        <span class="rail-toggle-label">Collapse</span>
+      }
+    </button>
+
+    @if (shell.railCollapsed()) {
+      <!-- Collapsed there is no visible text at all, so every glyph carries both an
+           accessible name and a title: an unexplained arrow is not a feature. -->
+      <div class="rail-icons">
+        @if (doc()) {
+          <div
+            class="rail-tile rail-tile--active"
+            role="img"
+            [title]="doc()!.filename"
+            [attr.aria-label]="'Open document: ' + doc()!.filename"
+          >
+            <ui-icon name="file" [size]="18" />
+          </div>
+          <button
+            class="rail-icon-btn"
+            type="button"
+            title="Replace document"
+            aria-label="Replace document"
+            (click)="replaceDocument()"
+          >
+            <!-- Inline rather than ui-icon's `refresh`: that glyph is drawn on a 24 grid
+                 inside a 16 viewBox, so at this size it clips to a fragment. Fixing it
+                 belongs in ui-kit, which this change does not own. -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
+        } @else {
+          <div class="rail-tile rail-tile--empty" role="img" title="No document" aria-label="No document">
+            <ui-icon name="file" [size]="18" />
+          </div>
+        }
       </div>
+
+      <app-hosted-shelf [collapsed]="true" />
     } @else {
-      <div class="doc-empty">No document loaded</div>
-    }
-    @if (localMode && modelStatus(); as status) {
-      <div class="doc-meta" role="status">{{ status }}</div>
+      @if (doc()) {
+        <div class="doc-card">
+          <!-- Two boxes, not one string: the head clips with an ellipsis and the tail
+               cannot shrink, so the name stays on one line and keeps its extension. -->
+          <div class="doc-name" [title]="doc()!.filename">
+            <span class="doc-name-head">{{ docName().head }}</span>
+            @if (docName().tail) {
+              <span class="doc-name-tail">{{ docName().tail }}</span>
+            }
+          </div>
+          <div class="doc-meta">
+            {{ doc()!.pageCount }} pages · {{ (doc()!.fileSize / 1024).toFixed(0) }} KB
+          </div>
+          <button class="replace-btn" type="button" (click)="replaceDocument()">
+            Replace document
+          </button>
+        </div>
+      } @else {
+        <div class="doc-empty">No document</div>
+      }
+
+      <app-hosted-shelf />
     }
   </aside>
 
   <section class="chat-col">
-    <chat-panel
-      [docLoaded]="!!doc()"
-      [documentVersion]="documentVersion()"
-      (citationsChanged)="onCitationsChanged($event)"
-    />
+    @if (modelError(); as failure) {
+      <!-- The document still renders beside this: parsing is pdf.js and needs no WebGPU.
+           Only the answering is gone, so only this column changes. -->
+      <app-webgpu-notice [message]="failure" />
+    } @else {
+      @if (!doc()) {
+        <div class="chat-empty">
+          @if (localMode) {
+            <p class="chat-empty-line">
+              Drop a PDF to begin. It is read and answered on your computer.
+            </p>
+            <p class="chat-empty-note" role="note">
+              This document is read, indexed and answered entirely in your browser.
+              Nothing is uploaded and no account is needed. The model it answers with is
+              downloading now.
+            </p>
+          } @else {
+            <p class="chat-empty-line">Drop a PDF to begin.</p>
+            <p class="chat-empty-note" role="note">
+              The PDF is read in your browser, but its text and your questions are sent to
+              NVIDIA NIM through the DocLocal backend. Use documents you are comfortable
+              sharing.
+            </p>
+          }
+        </div>
+      }
+
+      <chat-panel
+        [docLoaded]="!!doc()"
+        [documentVersion]="documentVersion()"
+        (citationsChanged)="onCitationsChanged($event)"
+      />
+
+      <!-- With no document the chat panel has no status of its own to show, so the
+           download reports here, under the composer, rather than twice. -->
+      @if (!doc() && modelStatus(); as status) {
+        <p class="model-status" role="status">{{ status }}</p>
+      }
+    }
   </section>
 
   <section class="pdf-col">
@@ -44,17 +140,6 @@
     } @else {
       <div class="upload-wrapper">
         <pdf-upload-dropzone (fileSelected)="onFileSelected($event)" />
-        @if (localMode) {
-          <p class="notice-text" role="note">
-            This document is read, indexed and answered entirely in your browser. Nothing is
-            uploaded and no account is needed. The first question downloads a ~2 GB model.
-          </p>
-        } @else {
-          <p class="notice-text" role="note">
-            The PDF is read in your browser, but its text and your questions are sent to NVIDIA NIM
-            through the DocLocal backend. Use documents you are comfortable sharing.
-          </p>
-        }
         @if (parsing()) {
           <p class="status-text">Parsing document…</p>
         }

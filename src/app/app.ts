@@ -1,7 +1,9 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '@doclocal/data-auth';
 import { HOSTED_MODE } from './tier-mode';
 import { Login } from './login/login';
+import { ShellState } from './shell-state';
+import { middleTruncate } from './middle-truncate';
 import { Workspace } from './workspace/workspace';
 
 type Theme = 'dark' | 'light';
@@ -26,6 +28,12 @@ export class App {
    * sign-in gate only applies to the hosted path, which does both.
    */
   readonly hostedMode = inject(HOSTED_MODE);
+
+  /** Shared with the workspace's rail: whether it is collapsed, and what is open. */
+  readonly shell = inject(ShellState);
+
+  /** Middle-truncated, same as in the rail, so the extension survives a narrow header. */
+  readonly openDocName = computed(() => middleTruncate(this.shell.documentName() ?? ''));
 
   theme = signal<Theme>('dark');
 

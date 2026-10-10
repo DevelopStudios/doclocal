@@ -1,0 +1,41 @@
+.card {
+  margin: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+}
+
+// --color-warning, not --color-evidence: amber either way, but this is a failure, not a
+// citation, and the token layer keeps those two roles apart on purpose.
+.glyph {
+  display: block;
+  color: var(--color-warning);
+}
+
+.title {
+  margin-top: 12px;
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+
+.body {
+  margin-top: 8px;
+  font-size: var(--text-ui);
+  line-height: var(--leading-body);
+  color: var(--color-text-muted);
+}
+
+.rule {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid var(--color-hairline);
+}
+
+.hosted {
+  font-size: var(--text-secondary);
+  line-height: var(--leading-ui);
+  color: var(--color-text-dim);
+}
