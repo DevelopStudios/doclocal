@@ -26,8 +26,10 @@ pdf-page {
     &[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
     &[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
     .markedContent { display: contents; }
-    ::selection { background: rgb(70 110 240 / 35%); }
+    ::selection { background: var(--color-selection-paper); }
   }
   .pdf-highlight-layer { position: absolute; inset: 0; pointer-events: none; }
-  .citation-highlight { position: absolute; background: rgb(255 193 7 / 35%); border-radius: 2px; }
+  // The highlight is drawn over the white document sheet, so it uses the paper
+  // variant of the evidence token rather than the dark-chrome one.
+  .citation-highlight { position: absolute; background: var(--color-evidence-paper-wash); border-radius: 2px; }
 }

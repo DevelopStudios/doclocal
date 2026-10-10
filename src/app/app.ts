@@ -4,7 +4,7 @@ import { HOSTED_MODE } from './tier-mode';
 import { Login } from './login/login';
 import { Workspace } from './workspace/workspace';
 
-type Theme = 'dark' | 'light' | 'mono';
+type Theme = 'dark' | 'light';
 
 /**
  * The sign-in gate. The workspace is only created once signed in, and destroyed on
@@ -29,7 +29,7 @@ export class App {
 
   theme = signal<Theme>('dark');
 
-  readonly themes: Theme[] = ['dark', 'light', 'mono'];
+  readonly themes: Theme[] = ['dark', 'light'];
 
   constructor() {
     effect(() => {
