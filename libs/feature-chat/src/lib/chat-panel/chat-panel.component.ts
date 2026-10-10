@@ -13,7 +13,7 @@ import { Subscription } from 'rxjs';
 import { BackendService } from '@doclocal/data-backend';
 import type { BackendChatEvent } from '@doclocal/data-backend';
 import { MessageComponent } from '../message/message.component';
-import { ComposerComponent } from '../composer/composer.component';
+import { ComposerComponent, type ComposerState } from '../composer/composer.component';
 import type { Citation, Message } from '../model';
 import type { HighlightSpan } from '@doclocal/data-pdf';
 import { attachCitations, citedSpans, repairCitations, spansForCitation } from './citations';
@@ -46,27 +46,37 @@ import { attachCitations, citedSpans, repairCitations, spansForCitation } from '
         padding: 0 16px 8px;
       }
       .suggested-label {
-        font-size: 11px;
-        font-family: var(--font-mono);
-        color: var(--color-text-muted);
+        font-size: var(--text-micro);
+        line-height: var(--leading-tight);
+        color: var(--color-text-dim);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: var(--tracking-caps);
       }
+      /* Surface pills: a quiet offer, not a call to action. */
       .suggested-item {
         background: var(--color-surface);
-        border: 1px solid var(--color-border);
+        border: 1px solid var(--color-hairline);
         border-radius: 999px;
-        padding: 4px 12px;
-        font-size: 12px;
+        padding: 5px 12px;
+        font-family: var(--font-sans);
+        font-size: var(--text-secondary);
+        line-height: var(--leading-ui);
         color: var(--color-text-muted);
         cursor: pointer;
         transition:
           border-color 0.15s,
+          background 0.15s,
           color 0.15s;
       }
+      /* Accent on hover only: these are clickable, so accent is the right family. */
       .suggested-item:hover {
         border-color: var(--color-accent);
+        background: var(--color-surface-raised);
         color: var(--color-text);
+      }
+      .suggested-item:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
       }
       .bottom {
         padding: 12px 16px;
@@ -74,23 +84,31 @@ import { attachCitations, citedSpans, repairCitations, spansForCitation } from '
         flex-direction: column;
         gap: 8px;
       }
-      .index-status {
-        font-size: 12px;
-        font-family: var(--font-mono);
-        color: var(--color-text-muted);
-      }
       .index-error {
-        font-size: 12px;
-        color: #f87171;
-      }
-      .backend-status {
-        font-size: 12px;
-        font-family: var(--font-mono);
-        color: var(--color-text-muted);
+        font-size: var(--text-secondary);
+        line-height: var(--leading-ui);
+        font-weight: var(--weight-medium);
+        color: var(--color-text);
+        border-left: 2px solid var(--color-hairline);
+        padding-left: 8px;
       }
       .truncated-warning {
-        font-size: 12px;
-        color: #fb923c;
+        font-size: var(--text-secondary);
+        line-height: var(--leading-ui);
+        color: var(--color-text-muted);
+      }
+      /* The composer carries progress visually; a placeholder change is not announced,
+         so the live region stays for screen readers only. */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
     `,
   ],
@@ -116,17 +134,18 @@ import { attachCitations, citedSpans, repairCitations, spansForCitation } from '
           Couldn't index this document: {{ backend.sessionError() }}
         </p>
       } @else if (docLoaded() && backend.sessionStatus() === 'indexing') {
-        <p class="backend-status" role="status">Indexing with NVIDIA NIM…</p>
+        <p class="sr-only" role="status">Indexing with NVIDIA NIM…</p>
       }
       @if (truncated()) {
         <p class="truncated-warning">Answer may be truncated (hit token limit).</p>
       }
-      @if (streaming()) {
-        <button class="suggested-item" aria-label="Stop generating" (click)="stop()">
-          Stop generating
-        </button>
-      }
-      <chat-composer [disabled]="composerDisabled()" (submitted)="submit($event)" />
+      <chat-composer
+        [state]="composerState()"
+        [excerptCount]="excerptCount()"
+        [progress]="indexProgress()"
+        (submitted)="submit($event)"
+        (stopped)="stop()"
+      />
     </div>
   `,
 })
@@ -146,10 +165,47 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
   ]);
   streaming = signal(false);
   truncated = signal(false);
+  /** How many excerpts the current question retrieved, for the composer's placeholder. */
+  excerptCount = signal(0);
+  /** Whether answer text has started arriving, which separates `retrieving` from `writing`. */
+  answering = signal(false);
 
   indexReady = computed(() => this.backend.sessionStatus() === 'ready');
 
   composerDisabled = computed(() => this.streaming() || !this.docLoaded() || !this.indexReady());
+
+  /**
+   * The one control's state. Everything the column is doing is one of these five, and
+   * nothing else in the column reports status any more.
+   */
+  composerState = computed<ComposerState>(() => {
+    if (this.streaming()) return this.answering() ? 'writing' : 'retrieving';
+    if (!this.docLoaded()) return 'disabled';
+    const status = this.backend.sessionStatus();
+    // `error` is the "model cannot run" case: a failed index or a model that won't load.
+    if (status === 'error') return 'disabled';
+    if (status === 'ready') return 'idle';
+    return 'indexing';
+  });
+
+  /**
+   * On-device, the long wait is the model download, and `LocalBackend` exposes it as
+   * optional signals. The hosted backend has no number, so the rule sweeps instead.
+   * Read structurally rather than by importing `data-webllm`, which this lib must not
+   * pull into the chat column.
+   */
+  private readonly deviceModel = this.backend as unknown as {
+    modelLoading?: () => boolean;
+    modelProgress?: () => number;
+  };
+
+  indexProgress = computed<number | null>(() => {
+    const loading = this.deviceModel.modelLoading;
+    if (!loading || !loading()) return null;
+    const value = this.deviceModel.modelProgress?.() ?? 0;
+    // Zero is "no number yet", not "none done": a rule sitting at 0% reads as stalled.
+    return value > 0 ? value : null;
+  });
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['docLoaded'] || changes['documentVersion']) {
@@ -158,6 +214,8 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
       this.messages.set([]);
       this.streaming.set(false);
       this.truncated.set(false);
+      this.excerptCount.set(0);
+      this.answering.set(false);
       this.citationsChanged.emit([]);
     }
   }
@@ -181,6 +239,8 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
     this.messages.update((m) => [...m, userMsg, assistantMsg]);
     this.streaming.set(true);
     this.truncated.set(false);
+    this.excerptCount.set(0);
+    this.answering.set(false);
     this.citationsChanged.emit([]);
 
     let citations: Citation[] = [];
@@ -200,6 +260,7 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
               startWord: c.startWord,
               score: c.score,
             }));
+            this.excerptCount.set(citations.length);
             const stage =
               citations.length > 0
                 ? `Reading ${citations.length} ${citations.length === 1 ? 'excerpt' : 'excerpts'}…`
@@ -209,6 +270,9 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
             );
           } else if (event.type === 'token') {
             fullContent += event.token;
+            // A bare citation marker is not an answer yet, so the composer stays on
+            // `retrieving` until real prose arrives -- same rule the bubble's stage uses.
+            if (/[^\s[\]\d]/.test(fullContent)) this.answering.set(true);
             this.messages.update((m) =>
               m.map((msg) =>
                 msg.id === assistantId ? { ...msg, content: fullContent, citations } : msg,
@@ -231,6 +295,7 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
               ),
             );
             this.streaming.set(false);
+            this.answering.set(false);
           } else {
             const errText = event.retryable ? `${event.message} (retryable)` : event.message;
             const content = fullContent
@@ -242,6 +307,7 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
               ),
             );
             this.streaming.set(false);
+            this.answering.set(false);
           }
         },
         error: (err: Error) => this.fail(assistantId, err),
@@ -282,6 +348,7 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
       ),
     );
     this.streaming.set(false);
+    this.answering.set(false);
   }
 
   private fail(assistantId: string, err: Error): void {
@@ -297,5 +364,6 @@ export class ChatPanelComponent implements OnChanges, OnDestroy {
       ),
     );
     this.streaming.set(false);
+    this.answering.set(false);
   }
 }
