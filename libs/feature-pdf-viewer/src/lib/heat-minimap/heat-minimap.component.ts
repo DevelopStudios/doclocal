@@ -12,23 +12,37 @@ interface PageHeat {
   score: number;
 }
 
+/**
+ * A narrow rail down the document showing which pages the current answer drew on.
+ *
+ * This is EVIDENCE, not chrome and not an interactive accent: it answers "where in this
+ * document did that answer come from", so it is painted with --color-evidence over a
+ * --color-evidence-wash track, the same family as the citation chips in the answer and the
+ * highlight drawn on the page. The track spans the whole document so an unlit stretch reads
+ * as "nothing here", and the opacity ramp separates a strong source page from a weak one.
+ */
 @Component({
   selector: 'pdf-heat-minimap',
   standalone: true,
   styles: [`
+    :host { display: block; flex-shrink: 0; }
     .minimap {
-      display: flex; flex-direction: column; gap: 3px;
-      padding: 16px 5px; width: 20px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 2px;
+      width: 6px; height: 100%; border-radius: 3px;
+      background: var(--color-evidence-wash);
+      overflow: hidden;
     }
     .heat-strip {
-      height: 20px; border-radius: 2px;
-      background: var(--color-accent);
+      /* Each page gets an equal share of the rail, so the rail maps to the document
+         however long it is, instead of overflowing past a few dozen pages. */
+      flex: 1 1 0; min-height: 3px;
+      background: var(--color-evidence);
       cursor: pointer; transition: opacity 0.3s, outline 0.15s;
-      outline: 1px solid transparent;
+      outline: 1px solid transparent; outline-offset: -1px;
     }
     .heat-strip:hover { opacity: 1 !important; }
     .heat-strip.active {
-      outline-color: var(--color-accent);
+      outline-color: var(--color-evidence);
       opacity: 1 !important;
     }
   `],

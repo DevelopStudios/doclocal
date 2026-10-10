@@ -1,4 +1,9 @@
 :host { display: block; width: 100%; }
+// The sheet itself. Its parent card paints nothing of its own, so this is the only
+// document surface -- there is no second tone framing the rendered page.
 .page-surface { position: relative; background: var(--color-paper); color: var(--color-ink); width: 100%; overflow: hidden; }
-.page-status { position: absolute; inset: 0; display: grid; place-content: center; padding: 16px; font: 13px sans-serif; }
+.page-status {
+  position: absolute; inset: 0; display: grid; place-content: center; padding: 16px;
+  font-family: var(--font-sans); font-size: var(--text-secondary); line-height: var(--leading-ui);
+}
 .page-status button { margin-top: 8px; }

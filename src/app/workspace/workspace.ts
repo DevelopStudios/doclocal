@@ -7,7 +7,6 @@ import { HOSTED_MODE } from '../tier-mode';
 import { ChatPanelComponent } from '@doclocal/feature-chat';
 import type { HeatResult } from '@doclocal/feature-pdf-viewer';
 import {
-  HeatMinimapComponent,
   PdfViewerComponent,
   UploadDropzoneComponent,
 } from '@doclocal/feature-pdf-viewer';
@@ -21,7 +20,7 @@ import {
 @Component({
   selector: 'app-workspace',
   standalone: true,
-  imports: [ChatPanelComponent, PdfViewerComponent, HeatMinimapComponent, UploadDropzoneComponent],
+  imports: [ChatPanelComponent, PdfViewerComponent, UploadDropzoneComponent],
   templateUrl: './workspace.html',
   styleUrl: './workspace.scss',
 })
