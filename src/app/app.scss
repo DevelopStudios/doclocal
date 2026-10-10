@@ -3,26 +3,46 @@
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 20px; height: 48px; flex-shrink: 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-hairline);
   background: var(--color-surface);
 }
 
-.brand { font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
-
-.topbar-actions { display: flex; align-items: center; gap: 16px; }
-.signed-in-as { font-size: 12px; color: var(--color-text-muted); }
-.signed-in-as strong { color: var(--color-text); font-weight: 500; }
-.signout-btn {
-  padding: 4px 10px; border-radius: var(--radius-sm);
-  background: transparent; border: 1px solid var(--color-border);
-  color: var(--color-text); font-size: 12px; cursor: pointer;
-  &:hover { border-color: var(--color-accent); }
+.brand {
+  font-weight: var(--weight-bold); font-size: var(--text-ui);
+  letter-spacing: -0.01em;
 }
 
-.theme-toggle { display: flex; gap: 2px; }
-.theme-btn {
+.topbar-actions { display: flex; align-items: center; gap: 16px; }
+.signed-in-as { font-size: var(--text-secondary); color: var(--color-text-muted); }
+.signed-in-as strong { color: var(--color-text); font-weight: var(--weight-medium); }
+.signout-btn {
   padding: 4px 10px; border-radius: var(--radius-sm);
-  background: transparent; border: 1px solid transparent;
-  color: var(--color-text-muted); font-size: 12px; cursor: pointer;
-  &.active { border-color: var(--color-border); color: var(--color-text); }
+  background: transparent; border: 1px solid var(--color-hairline);
+  color: var(--color-text); font-family: var(--font-sans);
+  font-size: var(--text-secondary); cursor: pointer;
+  &:hover { border-color: var(--color-accent); color: var(--color-accent); }
+  &:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+}
+
+/* A two-segment control: an inset track the width of its segments, with the
+   selected one raised out of it. Sized from the segments rather than fixed
+   widths, so the pair reads as one control at any label length. */
+.theme-toggle {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--color-bg); border: 1px solid var(--color-hairline);
+  border-radius: 999px;
+}
+.theme-btn {
+  padding: 4px 12px; border-radius: 999px;
+  background: transparent; border: none;
+  color: var(--color-text-dim); font-family: var(--font-sans);
+  font-size: var(--text-micro); font-weight: var(--weight-medium);
+  text-transform: uppercase; letter-spacing: var(--tracking-caps);
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+  &:hover { color: var(--color-text-muted); }
+  &.active {
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+  }
+  &:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 }

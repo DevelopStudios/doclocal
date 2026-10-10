@@ -17,7 +17,8 @@ are not part of the app.
 - **Citation chips** — hover over `[1]` references to preview the source excerpt
 - **Stop, replace, delete** — cancel an answer mid-stream; replacing or closing a document deletes
   its backend session
-- **Three themes** — dark, light, mono
+- **Two themes** — dark (primary) and light, both from one set of design tokens in
+  `src/styles.scss`
 
 ## Requirements
 
